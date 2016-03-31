@@ -64,11 +64,7 @@ def interact(bodies, timestep, step_num):
 def plotting(bodies):
 	for b in bodies:
 		mlab.points3d(b.xpos, b.ypos, b.zpos)
-
-def merge(bodies):
-	for i in bodies:
-		for j in bodies:
-			if 
+		#points3d takes a fourth input (a number) that can determine the size/color of the point
 
 def randomize(num_bodies, init_radius, init_max_mass, init_max_v):
 	bodies = []
@@ -89,6 +85,25 @@ def randomize(num_bodies, init_radius, init_max_mass, init_max_v):
 		body = particle(mass, px, py, pz, vx, vy, vz)
 		bodies.append(body)
 	return bodies
+
+################pseudocode here just for reference!!!!!
+def simulate():
+	step_num = 0
+	previous_bodies = initialize(input1)
+	while pause = False:
+		mlab.clf()
+		interact(previous_bodies, timestep, step_num)
+		plotting()
+		previous_bodies = bodies
+		step_num += 1
+
+def merge(bodies):
+	for i in bodies:
+		for j in bodies:
+			if 
+
+def pause():
+	pass
 
 #################################
 #Solar System
