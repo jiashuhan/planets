@@ -2,6 +2,8 @@ from numpy import *
 from random import random
 from mayavi import mlab
 
+G = 6.67e(-11)
+
 class body(object):
 	def __init__(self, mass, px, py, pz, vx, vy, vz, nm):
 		self.mass = mass
