@@ -1,8 +1,15 @@
 from numpy import *
 from random import random
-from mayavi import mlab
+import pyglet
+from pyglet.window import key, mouse
+from pyglet_gui.theme import Theme
+from pyglet_gui.manager import Manager
+from pyglet_gui.gui import Label
+from pyglet_gui.buttons import Button
 
 G = 6.67e-11
+window = pyglet.window.Window(640, 480, resizable=True, vsync=True)
+batch = pyglet.graphics.Batch()
 
 class body(object):
 	def __init__(self, mass, px, py, pz, vx, vy, vz, nm):
@@ -119,6 +126,46 @@ def merge(body1, body2):
 def pause():
 	pass
 
+@window.event
+def on_draw():
+	window.clear()
+#	label1.draw()
+#	vertex_list1.draw(pyglet.gl.GL_LINES)
+#	vertex_list2.draw(pyglet.gl.GL_QUADS)
+	batch.draw()
+   	#prints the label
+
+theme = Theme({"font": "Lucida Grande",
+               "font_size": 12,
+               "text_color": [255, 255, 255, 255],
+               "gui_color": [255, 0, 0, 255],
+               "button": {
+                   "down": {
+                       "image": {
+                           "source": "button-down.png",
+                           "frame": [8, 6, 2, 2],
+                           "padding": [18, 18, 8, 6]
+                       },
+                       "text_color": [0, 0, 0, 255]
+                   },
+                   "up": {
+                       "image": {
+                           "source": "button.png",
+                           "frame": [6, 5, 6, 3],
+                           "padding": [18, 18, 8, 6]
+                       }
+                   }
+               }
+              }, resources_path='/Users/aqtocx/Downloads/pyglet-gui-master/theme/') #this should be the path to your own directory of pyglet-gui
+
+def callback(is_pressed):
+    print('Button was pressed to state', is_pressed)
+    return is_pressed
+
+button = Button('Pause', on_press=callback)
+Manager(button, window=window, theme=theme, batch=batch, anchor=(-1, -1))
+
+pyglet.app.run()
 #################################
 #Solar System
 sun = body(2e30, 0, 0, 0, 0, 0, 0, 'Sun')
