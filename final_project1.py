@@ -37,13 +37,18 @@ def interact(bodies, timestep, step_num):
 		for j in bodies:
 			#find the other body
 			if i != j:
-				#check if the two are different
-				forces = i.gravity(j)
-				total_fx += forces[0]
-				#total force in x for each body
-				total_fy += forces[1]
-				#total force in y for each body
-				total_fz += forces[2]
+				if ((i.position[0]-j.position[0])**2+(i.position[1]-j.position[1])**2+(i.position[2]-j.position[2])**2) < 1e16:
+					new_body = merge(i, j)
+					bodies.append(new_body)
+					del i, j
+				else:
+					#check if the two are different
+					forces = i.gravity(j)
+					total_fx += forces[0]
+					#total force in x for each body
+					total_fy += forces[1]
+					#total force in y for each body
+					total_fz += forces[2]
 		forces_x.append(total_fx)
 		#append force in x for each body
 		forces_y.append(total_fy)
@@ -99,10 +104,17 @@ def simulate():
 		previous_bodies = bodies
 		step_num += 1
 
-def merge(bodies):
-	for i in bodies:
-		for j in bodies:
-			if 
+def merge(body1, body2):
+	new_name = body1.nm + '+' + body2.nm
+	new_px = (body1.position[0] + body2.position[0]) / 2
+	new_py = (body1.position[1] + body2.position[1]) / 2
+	new_pz = (body1.position[2] + body2.position[2]) / 2
+	new_mass = body1.mass + body2.mass
+	new_vx = (body1.mass * body1.velocity[0] + body2.mass * body2.velocity[0]) / new_mass
+	new_vy = (body1.mass * body1.velocity[1] + body2.mass * body2.velocity[1]) / new_mass
+	new_vz = (body1.mass * body1.velocity[2] + body2.mass * body2.velocity[2]) / new_mass
+	new_body = body(new_mass, new_px, new_py, new_pz, new_vx, new_vy, new_vz, new_name)
+	return new_body
 
 def pause():
 	pass
