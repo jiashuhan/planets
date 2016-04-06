@@ -51,9 +51,9 @@ def interact(bodies, timestep, step_num):
 					new_body = merge(i, j)
 					new_body.origin1 = i.nm; new_body.origin2 = j.nm
 					if i.merged == False:
-						i.merged = True; bodies.remove(i); old_bodies.append(i)
+						i.merged = True; bodies.remove(i)
 					if j.merged == False:
-						j.merged = True; bodies.remove(j); old_bodies.append(j)
+						j.merged = True; bodies.remove(j)
 					bodies.append(new_body)
 				else:
 					#check if the two are different
