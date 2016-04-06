@@ -20,6 +20,9 @@ class body(object):
 		self.ypos = []
 		self.zpos = []
 		self.nm = nm
+		self.merged = False
+		self.origin1 = None
+		self.origin2 = None
 
 	def gravity(self, other):
 		distance_x = other.position[0] - self.position[0]
@@ -44,10 +47,14 @@ def interact(bodies, timestep, step_num):
 		for j in bodies:
 			#find the other body
 			if i != j:
-				if ((i.position[0]-j.position[0])**2+(i.position[1]-j.position[1])**2+(i.position[2]-j.position[2])**2) < 1e16:
+				if ((i.position[0]-j.position[0])**2+(i.position[1]-j.position[1])**2+(i.position[2]-j.position[2])**2) < 4e19:
 					new_body = merge(i, j)
+					new_body.origin1 = i.nm; new_body.origin2 = j.nm
+					if i.merged == False:
+						i.merged = True; bodies.remove(i); old_bodies.append(i)
+					if j.merged == False:
+						j.merged = True; bodies.remove(j); old_bodies.append(j)
 					bodies.append(new_body)
-					del i, j
 				else:
 					#check if the two are different
 					forces = i.gravity(j)
