@@ -89,7 +89,7 @@ combobox2.move(250, 200)
 #list of all particles created for the simulation
 label3 = QLabel(w)
 label3.setText('List of Particles')
-label3.move(480, 20)
+label3.move(485, 25)
 table = QTableWidget(w)
 table.resize(150, 200)
 table.move(450, 50)
