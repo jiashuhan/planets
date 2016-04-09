@@ -1,7 +1,11 @@
 from numpy import *
 from random import random
-from mayavi import mlab
-G=6.67e-11
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+
+G = 6.67e-11
+
 
 class body(object):
 	def __init__(self, mass, px, py, pz, vx, vy, vz, nm):
@@ -12,18 +16,22 @@ class body(object):
 		self.ypos = []
 		self.zpos = []
 		self.nm = nm
+		self.merged = False
+		self.origin1 = None
+		self.origin2 = None
 
 	def gravity(self, other):
 		distance_x = other.position[0] - self.position[0]
 		distance_y = other.position[1] - self.position[1]
 		distance_z = other.position[2] - self.position[2]
-		distance = (distance_x**2. + distance_y**2. + distance_z**2.)**(1./2.)
-		force = G * self.mass * other.mass / (distance**2.)
+		distance = (distance_x**2 + distance_y**2 + distance_z**2)**(1/2.)
+		force = G * self.mass * other.mass / (distance**2)
 		force_x = force * (distance_x / distance)
 		force_y = force * (distance_y / distance)
 		force_z = force * (distance_z / distance)
 		return [force_x, force_y, force_z]
 
+merge_step = 0
 def interact(bodies, timestep, step_num):
 	forces_x = []
 	forces_y = []
@@ -38,19 +46,29 @@ def interact(bodies, timestep, step_num):
 			for j in bodies:
 				#find the other body
 				if i != j:
-					#check if the two are different
-					forces = i.gravity(j)
-					total_fx += forces[0]
-					#total force in x for each body
-					total_fy += forces[1]
-					#total force in y for each body
-					total_fz += forces[2]
+					if ((i.position[0]-j.position[0])**2+(i.position[1]-j.position[1])**2+(i.position[2]-j.position[2])**2) < 4e19:
+						merge_step = step
+						new_body = merge(i, j)
+						new_body.origin1 = i.nm; new_body.origin2 = j.nm
+						if i.merged == False:
+							i.merged = True; bodies.remove(i)
+						if j.merged == False:
+							j.merged = True; bodies.remove(j)
+						bodies.append(new_body)
+					else:
+						#check if the two are different
+						forces = i.gravity(j)
+						total_fx += forces[0]
+						#total force in x for each body
+						total_fy += forces[1]
+						#total force in y for each body
+						total_fz += forces[2]
 			forces_x.append(total_fx)
 			#append force in x for each body
 			forces_y.append(total_fy)
 			#append force in y for each body
 			forces_z.append(total_fz)
-		for k in range(len(forces_x)):
+		for k in range(len(bodies)):
 			acc_x = forces_x[k] / bodies[k].mass
 			acc_y = forces_y[k] / bodies[k].mass
 			acc_z = forces_z[k] / bodies[k].mass
@@ -65,13 +83,16 @@ def interact(bodies, timestep, step_num):
 			bodies[k].xpos.append(bodies[k].position[0])
 			bodies[k].ypos.append(bodies[k].position[1])
 			bodies[k].zpos.append(bodies[k].position[2])
-		return bodies
-		step += 1
+		step+=1
+	return bodies
 
 def plotting(bodies):
 	for b in bodies:
-		mlab.points3d(b.xpos, b.ypos, b.zpos, scale_factor=10)
-		#points3d takes a fourth input (a number) that can determine the size/color of the point
+		fig = plt.figure()
+		ax = fig.gca(projection='3d')
+		ax.plot(b.xpos, b.ypos, b.zpos)
+	plt.show()
+
 
 def randomize(num_bodies, init_radius, init_max_mass, init_max_v):
 	bodies = []
@@ -97,21 +118,34 @@ def randomize(num_bodies, init_radius, init_max_mass, init_max_v):
 def simulate():
 	step_num = 0
 	previous_bodies = initialize(input1)
-	#while pause = False:
-#		mlab.clf()
-#		interact(previous_bodies, timestep, step_num)
-#		plotting()
-#		previous_bodies = bodies
-#		step_num += 1
+	while pause == False:
+		mlab.clf()
+		interact(previous_bodies, timestep, step_num)
+		plotting()
+		previous_bodies = bodies
+		step_num += 1
 
-#def merge(bodies):
-#	for i in bodies:
-#		for j in bodies:
-#			if 
+def merge(body1, body2):
+	new_name = body1.nm + '+' + body2.nm
+	new_px = (body1.position[0] + body2.position[0]) / 2
+	new_py = (body1.position[1] + body2.position[1]) / 2
+	new_pz = (body1.position[2] + body2.position[2]) / 2
+	new_mass = body1.mass + body2.mass
+	new_vx = (body1.mass * body1.velocity[0] + body2.mass * body2.velocity[0]) / new_mass
+	new_vy = (body1.mass * body1.velocity[1] + body2.mass * body2.velocity[1]) / new_mass
+	new_vz = (body1.mass * body1.velocity[2] + body2.mass * body2.velocity[2]) / new_mass
+	new_body = body(new_mass, new_px, new_py, new_pz, new_vx, new_vy, new_vz, new_name)
+	return new_body
 
-#def pause():
-#	pass
+def pause():
+	pass
 
+
+
+#button = Button('Pause', on_press=callback)
+#Manager(button, window=window, theme=theme, batch=batch, anchor=(-1, -1))
+
+#pyglet.app.run()
 #################################
 #Solar System
 sun = body(2e30, 0, 0, 0, 0, 0, 0, 'Sun')
