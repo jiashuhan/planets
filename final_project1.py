@@ -1,8 +1,13 @@
 import sys
+<<<<<<< HEAD
 from PyQt4.QtGui import *
 from PyQt4.QtCore import pyqtSlot, QTimer, SIGNAL, SLOT
 #from PySide.QtGui import *
 #from PySide.QtCore import QTimer, SIGNAL, SLOT
+=======
+from PySide.QtGui import *
+from PySide.QtCore import QTimer, SIGNAL, SLOT
+>>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
 from numpy import pi, sin, cos
 from random import random, uniform
 import matplotlib.pyplot as plt
@@ -12,7 +17,7 @@ bodies = []
 G = 6.67e-11
 #gravitational constant, everything is in metric system
 #create window
-app = QApplication(sys.argv)
+#app = QApplication(sys.argv)
 w = QWidget()
 w.resize(640, 480)
 w.setWindowTitle('Particle Control')
@@ -91,7 +96,7 @@ combobox2.move(250, 200)
 #list of all particles created for the simulation
 label3 = QLabel(w)
 label3.setText('List of Particles')
-label3.move(480, 20)
+label3.move(485, 25)
 table = QTableWidget(w)
 table.resize(150, 200)
 table.move(450, 50)
@@ -136,7 +141,7 @@ button4 = QPushButton('Clear', w)
 button4.setToolTip('Clear old list of bodies')
 button4.resize(button4.sizeHint())
 button4.move(250, 270)
-#Number of steps per day
+#timestep
 textbox13 = QLineEdit(w)
 textbox13.move(250, 20)
 textbox13.resize(150, 30)
@@ -151,9 +156,13 @@ checkbox2 = QCheckBox(w)
 checkbox2.move(250, 320)
 checkbox2.setChecked(False)
 checkbox2.setText('Show Legend')
+<<<<<<< HEAD
 
 #create events
 @pyqtSlot()
+=======
+#create action
+>>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
 def on_activated1(text):
 	text_str = str(text)
 	if text_str != 'Random object':
@@ -175,7 +184,6 @@ def on_activated1(text):
 		textbox6.setText(str(data[6]))
 		textbox7.setText(str(data[0]))
 		textbox8.setText(text)
-@pyqtSlot()
 def on_activated2(text):
 	text_str = str(text)
 	textbox1.setText(str(test_particles[text_str][1]))
@@ -186,7 +194,6 @@ def on_activated2(text):
 	textbox6.setText(str(test_particles[text_str][6]))
 	textbox7.setText(str(test_particles[text_str][0]))
 	textbox8.setText(text)
-@pyqtSlot()
 def on_click_button1():
 	px = float(textbox1.text())
 	py = float(textbox2.text())
@@ -199,22 +206,24 @@ def on_click_button1():
 	new_body = body(mass, px, py, pz, vx, vy, vz, name)
 	bodies.append(new_body)
 	table_items(bodies)
+<<<<<<< HEAD
 @pyqtSlot()
+=======
+>>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
 def on_click_button2():
-	steps_per_day = int(textbox13.text())
+	timestep = int(textbox13.text())
 	num_years = int(textbox14.text())
-	simulate(bodies, 86400/steps_per_day, 365*steps_per_day*num_years, steps_per_day)
-@pyqtSlot()
+	simulate(bodies, 86400/timestep, 365*timestep*num_years)
 def on_click_button3():
 	num_bodies = int(textbox9.text())
 	init_radius = float(textbox10.text())
 	init_max_v = float(textbox11.text())
 	init_max_mass = float(textbox12.text())
 	bodies = randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v)
-	steps_per_day = int(textbox13.text())
+	timestep = int(textbox13.text())
 	num_years = int(textbox14.text())
-	simulate(bodies, 86400/steps_per_day, 365*steps_per_day*num_years, steps_per_day)
-@pyqtSlot()
+	simulate(bodies, 86400/timestep, 365*timestep*num_years)
+ 
 def on_click_button4():
 	global bodies, progress
 	bodies = []
@@ -234,8 +243,11 @@ def on_click_button4():
 	textbox14.setText('Number of years')
 	table.setColumnCount(0)
 	table.setRowCount(0)
+<<<<<<< HEAD
 	progress = 0
 	bar.setValue(0)
+=======
+>>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
 	plt.close()
 
 def randomize(init_radius, init_max_mass, init_max_v):
@@ -261,11 +273,7 @@ def randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v):
 		bodies.append(random_body)
 	return bodies
 
-def simulate(bodies, timestep, num_steps, steps_per_day):
-	table_items(bodies)
-	global progress
-	timer.start(1000)
-	duration = num_steps / steps_per_day
+def simulate(bodies, timestep, num_steps):
 	old_bodies = []
 	for i in range(0, num_steps):
 		#repeat for given number of steps
@@ -319,9 +327,6 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 			bodies[a].ypos.append(bodies[a].position[1])
 			bodies[a].zpos.append(bodies[a].position[2])
 			#store position in list
-		time = i / steps_per_day
-		progress = time * 100 / duration 
-		print str(progress) + '%'
 #		time += timestep
 	fig = plt.figure()
 	ax = fig.gca(projection='3d')
@@ -404,21 +409,6 @@ test_particles = {'Test Particle 1':[2e30, 1e12, 0, 0, 0, 1e4, 0],	#1, 2 - fork
                   'Test Particle 3':[2e30, 1e12, 0, 0, 0, 1e3, 0],	#3, 4 - spiral/solenoid
                   'Test Particle 4':[2e30, 1e12, 0, 1e12, -1e3, -1e3, -1e3]	
 }
-#create a progressbar class
-class QProgBar(QProgressBar):
-	value = 0
-	@pyqtSlot()
-	def update_value(progressBar):
-		progressBar.setValue(progress)
-		print(progress)
-
-bar = QProgBar(w)
-bar.resize(150, 80)
-bar.setValue(0)
-bar.move(250, 350)
-#Timer for progressbar
-timer = QTimer()
-bar.connect(timer, SIGNAL('timeout()'), bar, SLOT('update_value()'))
 
 button1.clicked.connect(on_click_button1)	#connect the signal to the slot
 button2.clicked.connect(on_click_button2)
