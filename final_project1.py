@@ -1,6 +1,8 @@
 import sys
 from PyQt4.QtGui import *
 from PyQt4.QtCore import pyqtSlot, QTimer, SIGNAL, SLOT
+#from PySide.QtGui import *
+#from PySide.QtCore import QTimer, SIGNAL, SLOT
 from numpy import pi, sin, cos
 from random import random, uniform
 import matplotlib.pyplot as plt
@@ -13,7 +15,7 @@ G = 6.67e-11
 app = QApplication(sys.argv)
 w = QWidget()
 w.resize(640, 480)
-w.setWindowTitle('Window')
+w.setWindowTitle('Particle Control')
 #textboxes for entering values
 textbox1 = QLineEdit(w)
 textbox1.move(20, 20)
@@ -55,7 +57,7 @@ button1.move(60, 400)
 #select objects from the solar system
 label1 = QLabel(w)
 label1.setText('Solar System')
-label1.move(250, 120)
+label1.move(250, 105)
 combobox1 = QComboBox(w)
 combobox1.addItem('Sun')
 combobox1.addItem('Mercury')
@@ -70,7 +72,12 @@ combobox1.addItem('Pluto')
 combobox1.addItem('Halley')
 combobox1.addItem('Hale-Bopp')
 combobox1.addItem('Random object')
-combobox1.move(250, 140)
+combobox1.move(250, 125)
+#checkbox for setting range limits
+checkbox1 = QCheckBox(w)
+checkbox1.move(250, 150)
+checkbox1.setChecked(False)
+checkbox1.setText('Set range for Solar System')
 #select test particles
 label2 = QLabel(w)
 label2.setText('Test Particles')
@@ -140,10 +147,10 @@ textbox14.move(250, 60)
 textbox14.resize(150, 30)
 textbox14.setText('Number of years')
 #checkbox for showing legend
-checkbox = QCheckBox(w)
-checkbox.move(250, 320)
-checkbox.setChecked(False)
-checkbox.setText('Show Legend')
+checkbox2 = QCheckBox(w)
+checkbox2.move(250, 320)
+checkbox2.setChecked(False)
+checkbox2.setText('Show Legend')
 
 #create events
 @pyqtSlot()
@@ -191,6 +198,7 @@ def on_click_button1():
 	name = str(textbox8.text())
 	new_body = body(mass, px, py, pz, vx, vy, vz, name)
 	bodies.append(new_body)
+	table_items(bodies)
 @pyqtSlot()
 def on_click_button2():
 	steps_per_day = int(textbox13.text())
@@ -208,7 +216,7 @@ def on_click_button3():
 	simulate(bodies, 86400/steps_per_day, 365*steps_per_day*num_years, steps_per_day)
 @pyqtSlot()
 def on_click_button4():
-	global bodies
+	global bodies, progress
 	bodies = []
 	textbox1.setText('Position X')
 	textbox2.setText('Position Y')
@@ -226,6 +234,7 @@ def on_click_button4():
 	textbox14.setText('Number of years')
 	table.setColumnCount(0)
 	table.setRowCount(0)
+	progress = 0
 	bar.setValue(0)
 	plt.close()
 
@@ -325,11 +334,12 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 	for c in old_bodies:
 		ax.plot(c.xpos, c.ypos, c.zpos, label=c.nm)
 #		print c.xpos, c.ypos, c.zpos
-	ax.set_xlim(-6e12, 6e12)
-	ax.set_ylim(-6e12, 6e12)
-	ax.set_zlim(-6e12, 6e12)
+	if checkbox1.isChecked() == True:
+		ax.set_xlim(-6e12, 6e12)
+		ax.set_ylim(-6e12, 6e12)
+		ax.set_zlim(-6e12, 6e12)
 	ax.set_xlabel('x'); ax.set_ylabel('y'); ax.set_zlabel('z')
-	if checkbox.isChecked() == True:
+	if checkbox2.isChecked() == True:
 		plt.legend()
 	plt.show()
 
