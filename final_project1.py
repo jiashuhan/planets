@@ -1,6 +1,6 @@
 import sys
 from PyQt4.QtGui import *
-from PyQt4.QtCore import pyqtSlot
+from PyQt4.QtCore import pyqtSlot, QTimer, SIGNAL, SLOT
 from numpy import pi, sin, cos
 from random import random, uniform
 import matplotlib.pyplot as plt
@@ -129,7 +129,7 @@ button4 = QPushButton('Clear', w)
 button4.setToolTip('Clear old list of bodies')
 button4.resize(button4.sizeHint())
 button4.move(250, 270)
-#timestep
+#Number of steps per day
 textbox13 = QLineEdit(w)
 textbox13.move(250, 20)
 textbox13.resize(150, 30)
@@ -144,7 +144,8 @@ checkbox = QCheckBox(w)
 checkbox.move(250, 320)
 checkbox.setChecked(False)
 checkbox.setText('Show Legend')
-#create action
+
+#create events
 @pyqtSlot()
 def on_activated1(text):
 	text_str = str(text)
@@ -192,9 +193,9 @@ def on_click_button1():
 	bodies.append(new_body)
 @pyqtSlot()
 def on_click_button2():
-	timestep = int(textbox13.text())
+	steps_per_day = int(textbox13.text())
 	num_years = int(textbox14.text())
-	simulate(bodies, 86400/timestep, 365*timestep*num_years)
+	simulate(bodies, 86400/steps_per_day, 365*steps_per_day*num_years, steps_per_day)
 @pyqtSlot()
 def on_click_button3():
 	num_bodies = int(textbox9.text())
@@ -202,9 +203,9 @@ def on_click_button3():
 	init_max_v = float(textbox11.text())
 	init_max_mass = float(textbox12.text())
 	bodies = randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v)
-	timestep = int(textbox13.text())
+	steps_per_day = int(textbox13.text())
 	num_years = int(textbox14.text())
-	simulate(bodies, 86400/timestep, 365*timestep*num_years)
+	simulate(bodies, 86400/steps_per_day, 365*steps_per_day*num_years, steps_per_day)
 @pyqtSlot()
 def on_click_button4():
 	global bodies
@@ -225,6 +226,7 @@ def on_click_button4():
 	textbox14.setText('Number of years')
 	table.setColumnCount(0)
 	table.setRowCount(0)
+	bar.setValue(0)
 	plt.close()
 
 def randomize(init_radius, init_max_mass, init_max_v):
@@ -250,8 +252,11 @@ def randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v):
 		bodies.append(random_body)
 	return bodies
 
-def simulate(bodies, timestep, num_steps):
+def simulate(bodies, timestep, num_steps, steps_per_day):
 	table_items(bodies)
+	global progress
+	timer.start(1000)
+	duration = num_steps / steps_per_day
 	old_bodies = []
 	for i in range(0, num_steps):
 		#repeat for given number of steps
@@ -305,6 +310,9 @@ def simulate(bodies, timestep, num_steps):
 			bodies[a].ypos.append(bodies[a].position[1])
 			bodies[a].zpos.append(bodies[a].position[2])
 			#store position in list
+		time = i / steps_per_day
+		progress = time * 100 / duration 
+		print str(progress) + '%'
 #		time += timestep
 	fig = plt.figure()
 	ax = fig.gca(projection='3d')
@@ -386,6 +394,21 @@ test_particles = {'Test Particle 1':[2e30, 1e12, 0, 0, 0, 1e4, 0],	#1, 2 - fork
                   'Test Particle 3':[2e30, 1e12, 0, 0, 0, 1e3, 0],	#3, 4 - spiral/solenoid
                   'Test Particle 4':[2e30, 1e12, 0, 1e12, -1e3, -1e3, -1e3]	
 }
+#create a progressbar class
+class QProgBar(QProgressBar):
+	value = 0
+	@pyqtSlot()
+	def update_value(progressBar):
+		progressBar.setValue(progress)
+		print(progress)
+
+bar = QProgBar(w)
+bar.resize(150, 80)
+bar.setValue(0)
+bar.move(250, 350)
+#Timer for progressbar
+timer = QTimer()
+bar.connect(timer, SIGNAL('timeout()'), bar, SLOT('update_value()'))
 
 button1.clicked.connect(on_click_button1)	#connect the signal to the slot
 button2.clicked.connect(on_click_button2)
