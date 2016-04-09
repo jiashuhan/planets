@@ -319,6 +319,9 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 			bodies[a].ypos.append(bodies[a].position[1])
 			bodies[a].zpos.append(bodies[a].position[2])
 			#store position in list
+		time = i / steps_per_day
+		progress = time * 100 / duration 
+		print str(progress) + '%'	#shows progress
 #		time += timestep
 	fig = plt.figure()
 	ax = fig.gca(projection='3d')
