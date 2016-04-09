@@ -1,23 +1,18 @@
 import sys
-<<<<<<< HEAD
-from PyQt4.QtGui import *
-from PyQt4.QtCore import pyqtSlot, QTimer, SIGNAL, SLOT
-#from PySide.QtGui import *
-#from PySide.QtCore import QTimer, SIGNAL, SLOT
-=======
+#from PyQt4.QtGui import *
+#from PyQt4.QtCore import pyqtSlot, QTimer, SIGNAL, SLOT
 from PySide.QtGui import *
 from PySide.QtCore import QTimer, SIGNAL, SLOT
->>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
 from numpy import pi, sin, cos
 from random import random, uniform
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-
+#NOTE: when using PyQt4 instead of PySide, uncomment all "@pyqtSlot()" lines
 bodies = []
 G = 6.67e-11
 #gravitational constant, everything is in metric system
-#create window
-#app = QApplication(sys.argv)
+#create application and window
+app = QApplication(sys.argv)
 w = QWidget()
 w.resize(640, 480)
 w.setWindowTitle('Particle Control')
@@ -80,27 +75,28 @@ combobox1.addItem('Random object')
 combobox1.move(250, 125)
 #checkbox for setting range limits
 checkbox1 = QCheckBox(w)
-checkbox1.move(250, 150)
+checkbox1.move(250, 155)
 checkbox1.setChecked(False)
 checkbox1.setText('Set range for Solar System')
 #select test particles
 label2 = QLabel(w)
 label2.setText('Test Particles')
-label2.move(250, 180)
+label2.move(250, 185)
 combobox2 = QComboBox(w)
 combobox2.addItem('Test Particle 1')
 combobox2.addItem('Test Particle 2')
 combobox2.addItem('Test Particle 3')
 combobox2.addItem('Test Particle 4')
-combobox2.move(250, 200)
+combobox2.move(250, 205)
 #list of all particles created for the simulation
 label3 = QLabel(w)
 label3.setText('List of Particles')
 label3.move(485, 25)
 table = QTableWidget(w)
-table.resize(150, 200)
+table.resize(160, 200)
 table.move(450, 50)
 table_item = QTableWidgetItem()
+#update table
 def table_items(bodies):
 	num_items = len(bodies)
 	table.setColumnCount(1)
@@ -115,23 +111,24 @@ button2 = QPushButton('Start', w)
 button2.setToolTip('Start simulation')
 button2.resize(button2.sizeHint())
 button2.move(250, 240)
-#button for running simulation with all random particles
+#parameters for randomized simulation
 textbox9 = QLineEdit(w)
 textbox9.move(450, 260)
-textbox9.resize(150, 30)
+textbox9.resize(160, 30)
 textbox9.setText('Number of Particles')
 textbox10 = QLineEdit(w)
 textbox10.move(450, 300)
-textbox10.resize(150, 30)
+textbox10.resize(160, 30)
 textbox10.setText('Initial Radius')
 textbox11 = QLineEdit(w)
 textbox11.move(450, 340)
-textbox11.resize(150, 30)
+textbox11.resize(160, 30)
 textbox11.setText('Initial Max Velocity')
 textbox12 = QLineEdit(w)
 textbox12.move(450, 380)
-textbox12.resize(150, 30)
+textbox12.resize(160, 30)
 textbox12.setText('Initial Max Mass')
+#button for running simulation with all random particles
 button3 = QPushButton('Random', w)
 button3.setToolTip('Start simulation with all random particels')
 button3.resize(button3.sizeHint())
@@ -141,7 +138,7 @@ button4 = QPushButton('Clear', w)
 button4.setToolTip('Clear old list of bodies')
 button4.resize(button4.sizeHint())
 button4.move(250, 270)
-#timestep
+#number of steps per day
 textbox13 = QLineEdit(w)
 textbox13.move(250, 20)
 textbox13.resize(150, 30)
@@ -156,13 +153,9 @@ checkbox2 = QCheckBox(w)
 checkbox2.move(250, 320)
 checkbox2.setChecked(False)
 checkbox2.setText('Show Legend')
-<<<<<<< HEAD
 
 #create events
-@pyqtSlot()
-=======
-#create action
->>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
+#@pyqtSlot()
 def on_activated1(text):
 	text_str = str(text)
 	if text_str != 'Random object':
@@ -184,6 +177,7 @@ def on_activated1(text):
 		textbox6.setText(str(data[6]))
 		textbox7.setText(str(data[0]))
 		textbox8.setText(text)
+#@pyqtSlot()
 def on_activated2(text):
 	text_str = str(text)
 	textbox1.setText(str(test_particles[text_str][1]))
@@ -194,6 +188,7 @@ def on_activated2(text):
 	textbox6.setText(str(test_particles[text_str][6]))
 	textbox7.setText(str(test_particles[text_str][0]))
 	textbox8.setText(text)
+#@pyqtSlot()
 def on_click_button1():
 	px = float(textbox1.text())
 	py = float(textbox2.text())
@@ -205,25 +200,23 @@ def on_click_button1():
 	name = str(textbox8.text())
 	new_body = body(mass, px, py, pz, vx, vy, vz, name)
 	bodies.append(new_body)
-	table_items(bodies)
-<<<<<<< HEAD
-@pyqtSlot()
-=======
->>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
+	table_items(bodies)	#updates table
+#@pyqtSlot()
 def on_click_button2():
-	timestep = int(textbox13.text())
+	steps_per_day = int(textbox13.text())
 	num_years = int(textbox14.text())
-	simulate(bodies, 86400/timestep, 365*timestep*num_years)
+	simulate(bodies, 86400/steps_per_day, 365*steps_per_day*num_years, steps_per_day)
+#@pyqtSlot()
 def on_click_button3():
 	num_bodies = int(textbox9.text())
 	init_radius = float(textbox10.text())
 	init_max_v = float(textbox11.text())
 	init_max_mass = float(textbox12.text())
 	bodies = randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v)
-	timestep = int(textbox13.text())
+	steps_per_day = int(textbox13.text())
 	num_years = int(textbox14.text())
-	simulate(bodies, 86400/timestep, 365*timestep*num_years)
- 
+	simulate(bodies, 86400/steps_per_day, 365*steps_per_day*num_years, steps_per_day)
+#@pyqtSlot()
 def on_click_button4():
 	global bodies, progress
 	bodies = []
@@ -243,13 +236,10 @@ def on_click_button4():
 	textbox14.setText('Number of years')
 	table.setColumnCount(0)
 	table.setRowCount(0)
-<<<<<<< HEAD
 	progress = 0
 	bar.setValue(0)
-=======
->>>>>>> 69a103028577deeb268a82c4a749b34b378b209f
 	plt.close()
-
+#randomly generates set of values for an object
 def randomize(init_radius, init_max_mass, init_max_v):
 	r = random() * init_radius
 	phi = random() * pi
@@ -262,7 +252,7 @@ def randomize(init_radius, init_max_mass, init_max_v):
 	vy = uniform(-1, 1)*init_max_v
 	vz = uniform(-1, 1)*init_max_v
 	return [mass, px, py, pz, vx, vy, vz]
-
+#generates a list of random objects
 def randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v):
 	bodies = []
 	for i in range(num_bodies):
@@ -272,8 +262,11 @@ def randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v):
 		random_body = body(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7])
 		bodies.append(random_body)
 	return bodies
-
-def simulate(bodies, timestep, num_steps):
+#simulation and plotting
+def simulate(bodies, timestep, num_steps, steps_per_day):
+	global progress
+	timer.start(1000)	#starts timer
+	duration = num_steps / steps_per_day
 	old_bodies = []
 	for i in range(0, num_steps):
 		#repeat for given number of steps
@@ -289,7 +282,6 @@ def simulate(bodies, timestep, num_steps):
 				#find the other body
 				if j != k and k.merged == False and k.origin1 != j.nm and k.origin2 != j.nm:
 #					print ((j.position[0]-k.position[0])**2+(j.position[1]-k.position[1])**2+(j.position[2]-k.position[2])**2), j.nm, k.nm#, j.merged
-#					print i/365
 					if ((j.position[0]-k.position[0])**2+(j.position[1]-k.position[1])**2+(j.position[2]-k.position[2])**2) < 1e17:
 						new_body = merge(j, k)
 						new_body.origin1 = j.nm; new_body.origin2 = k.nm
@@ -347,7 +339,7 @@ def simulate(bodies, timestep, num_steps):
 	if checkbox2.isChecked() == True:
 		plt.legend()
 	plt.show()
-
+#merge two objects if too close together, momentum is conserved
 def merge(body1, body2):
 	new_name = body1.nm + '+' + body2.nm
 	new_px = (body1.position[0] + body2.position[0]) / 2
@@ -386,7 +378,7 @@ class body(object):
 		force_y = force * (distance_y / distance)
 		force_z = force * (distance_z / distance)
 		return [force_x, force_y, force_z]
-
+#data for solar system objects
 solar_system = {'Sun':[2e30, 0, 0, 0, 0, 0, 0],
             	'Mercury':[3.3e23, 4.6e10, 0, 0, 0, 5.66e4, 0],#At perihelion
               	'Venus':[4.87e24, 1.08e11, 0, 0, 0, 3.5e4, 0],
@@ -403,12 +395,27 @@ solar_system = {'Sun':[2e30, 0, 0, 0, 0, 0, 0],
 #comet1 = body(3e14, -4e9, 5e12, 0, 100, 0, 0) #escape
 #comet1 = body(3e14, -4e9, 5e12, 0, 1000, 1000, 0) #capture
 #comet1 = body(3e14, -4e9, 5e12, 2e12, 500, -1000, 2000, 'Some comet')
-
+#objects for demonstration
 test_particles = {'Test Particle 1':[2e30, 1e12, 0, 0, 0, 1e4, 0],	#1, 2 - fork
                   'Test Particle 2':[2e30, -1e12, 0, 0, 0, 1e4, 0],
                   'Test Particle 3':[2e30, 1e12, 0, 0, 0, 1e3, 0],	#3, 4 - spiral/solenoid
                   'Test Particle 4':[2e30, 1e12, 0, 1e12, -1e3, -1e3, -1e3]	
 }
+#create a progressbar class
+class QProgBar(QProgressBar):
+	value = 0
+	#@pyqtSlot()
+	def update_value(progressBar):
+		progressBar.setValue(progress)
+#		print(progress)
+
+bar = QProgBar(w)
+bar.resize(150, 80)
+bar.setValue(0)
+bar.move(250, 350)
+#Timer for progressbar
+timer = QTimer()
+bar.connect(timer, SIGNAL('timeout()'), bar, SLOT('update_value()'))
 
 button1.clicked.connect(on_click_button1)	#connect the signal to the slot
 button2.clicked.connect(on_click_button2)
