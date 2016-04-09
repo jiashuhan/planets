@@ -2,7 +2,7 @@ import sys
 from PyQt4.QtGui import *
 from PyQt4.QtCore import pyqtSlot
 from numpy import pi, sin, cos
-from random import random
+from random import random, uniform
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -89,9 +89,9 @@ table = QTableWidget(w)
 table.resize(150, 200)
 table.move(450, 50)
 table_item = QTableWidgetItem()
-table.setColumnCount(1)
 def table_items(bodies):
 	num_items = len(bodies)
+	table.setColumnCount(1)
 	table.setRowCount(num_items)
 	count = 0
 	for i in bodies:
@@ -115,11 +115,11 @@ textbox10.setText('Initial Radius')
 textbox11 = QLineEdit(w)
 textbox11.move(450, 340)
 textbox11.resize(150, 30)
-textbox11.setText('Inital Max Velocity')
+textbox11.setText('Initial Max Velocity')
 textbox12 = QLineEdit(w)
 textbox12.move(450, 380)
 textbox12.resize(150, 30)
-textbox12.setText('Inital Max Mass')
+textbox12.setText('Initial Max Mass')
 button3 = QPushButton('Random', w)
 button3.setToolTip('Start simulation with all random particels')
 button3.resize(button3.sizeHint())
@@ -133,12 +133,17 @@ button4.move(250, 270)
 textbox13 = QLineEdit(w)
 textbox13.move(250, 20)
 textbox13.resize(150, 30)
-textbox13.setText('Default timestep = 1 day')
+textbox13.setText('Number of steps per day')
 #number of years
 textbox14 = QLineEdit(w)
 textbox14.move(250, 60)
 textbox14.resize(150, 30)
 textbox14.setText('Number of years')
+#checkbox for showing legend
+checkbox = QCheckBox(w)
+checkbox.move(250, 320)
+checkbox.setChecked(False)
+checkbox.setText('Show Legend')
 #create action
 @pyqtSlot()
 def on_activated1(text):
@@ -202,7 +207,25 @@ def on_click_button3():
 	simulate(bodies, 86400/timestep, 365*timestep*num_years)
 @pyqtSlot()
 def on_click_button4():
+	global bodies
 	bodies = []
+	textbox1.setText('Position X')
+	textbox2.setText('Position Y')
+	textbox3.setText('Position Z')
+	textbox4.setText('Velocity X')
+	textbox5.setText('Velocity Y')
+	textbox6.setText('Velocity Z')
+	textbox7.setText('Mass')
+	textbox8.setText('Name')
+	textbox9.setText('Number of particles')
+	textbox10.setText('Initial radius')
+	textbox11.setText('Initial max velocity')
+	textbox12.setText('Initial max mass')
+	textbox13.setText('Steps per day')
+	textbox14.setText('Number of years')
+	table.setColumnCount(0)
+	table.setRowCount(0)
+	plt.close()
 
 def randomize(init_radius, init_max_mass, init_max_v):
 	r = random() * init_radius
@@ -212,9 +235,9 @@ def randomize(init_radius, init_max_mass, init_max_v):
 	px = r * sin(phi) * cos(theta)
 	py = r * sin(phi) * sin(theta)
 	pz = r * cos(phi)
-	vx = random()*init_max_v
-	vy = random()*init_max_v
-	vz = random()*init_max_v
+	vx = uniform(-1, 1)*init_max_v
+	vy = uniform(-1, 1)*init_max_v
+	vz = uniform(-1, 1)*init_max_v
 	return [mass, px, py, pz, vx, vy, vz]
 
 def randomized_bodies(num_bodies, init_radius, init_max_mass, init_max_v):
@@ -298,7 +321,8 @@ def simulate(bodies, timestep, num_steps):
 	ax.set_ylim(-6e12, 6e12)
 	ax.set_zlim(-6e12, 6e12)
 	ax.set_xlabel('x'); ax.set_ylabel('y'); ax.set_zlabel('z')
-#	plt.legend()
+	if checkbox.isChecked() == True:
+		plt.legend()
 	plt.show()
 
 def merge(body1, body2):
