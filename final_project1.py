@@ -342,6 +342,7 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 	if checkbox2.isChecked() == True:
 		plt.legend()
 	plt.show()
+	table_items(bodies)
 #merge two objects if too close together, momentum is conserved
 def merge(body1, body2):
 	new_name = body1.nm + '+' + body2.nm
