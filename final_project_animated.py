@@ -133,7 +133,7 @@ textbox12.resize(160, 30)
 textbox12.setText('Initial Max Mass')
 #button for running simulation with all random particles
 button3 = QPushButton('Random', w)
-button3.setToolTip('Start simulation with all random particels')
+button3.setToolTip('Start simulation with all random particles')
 button3.resize(button3.sizeHint())
 button3.move(480, 420)
 #button for clearing old list of bodies
@@ -290,12 +290,15 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 				if j != k and k.merged == False and k.origin1 != j.nm and k.origin2 != j.nm:
 #					print ((j.position[0]-k.position[0])**2+(j.position[1]-k.position[1])**2+(j.position[2]-k.position[2])**2), j.nm, k.nm#, j.merged
 					if ((j.position[0]-k.position[0])**2+(j.position[1]-k.position[1])**2+(j.position[2]-k.position[2])**2) < 1e17:
+						#steps_per_day needs to to at least 100 to make sure particles can merge
 						new_body = merge(j, k)
 						new_body.origin1 = j.nm; new_body.origin2 = k.nm
 						if j.merged == False:
-							j.merged = True; bodies.remove(j); old_bodies.append(j)
+							j.merged = True
+							bodies.remove(j); old_bodies.append(j)
 						if k.merged == False:
-							k.merged = True; bodies.remove(k); old_bodies.append(k)
+							k.merged = True
+							bodies.remove(k); old_bodies.append(k)
 						bodies.append(new_body)
 					else:
 						#check if the two are different
@@ -330,6 +333,7 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 		progress = time * 100 / duration 
 		print str(progress) + '%'	#shows progress
 #		time += timestep
+	#animate the plot if checkbox3 is checked, not fully compatible with merge
 	if checkbox3.isChecked() == True:
 		fig = plt.figure()
 		ax = p3.Axes3D(fig)
@@ -339,7 +343,7 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 			positions.append(b.positions)
 		for c in old_bodies:
 			old_positions = []
-			old_positions.append([b.xpos, b.ypos, b.zpos])
+			old_positions.append([c.xpos, c.ypos, c.zpos])
 #		print positions
 		paths = [ax.plot(particle[0, 0:1], particle[1, 0:1], particle[2, 0:1])[0] for particle in positions]
 		ax.set_xlim3d([-6e12, 6e12])
@@ -352,7 +356,7 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 		path_ani = animation.FuncAnimation(fig, update_paths, num_steps, fargs=(positions, paths),
                                            interval=1, blit=False)
 		plt.show()
-	else:
+	else:#make static plot
 		fig = plt.figure()
 		ax = fig.gca(projection='3d')
 #		print bodies, old_bodies
@@ -368,7 +372,9 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 			ax.set_xlim(-6e12, 6e12)
 			ax.set_ylim(-6e12, 6e12)
 			ax.set_zlim(-6e12, 6e12)
-		ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+		ax.set_xlabel('X')
+		ax.set_ylabel('Y')
+		ax.set_zlabel('Z')
 		if checkbox2.isChecked() == True:
 			plt.legend()
 		plt.show()
@@ -387,10 +393,10 @@ def merge(body1, body2):
 	return new_body
 #update paths for animation
 def update_paths(num_steps, positions, paths):
-    for path, position in zip(paths, positions):
-        path.set_data(position[0:2, :num_steps])
-        path.set_3d_properties(position[2, :num_steps])
-    return paths
+	for path, position in zip(paths, positions):
+		path.set_data(position[0:2, :num_steps])
+		path.set_3d_properties(position[2, :num_steps])
+	return paths
 
 class body(object):
 	def __init__(self, mass, px, py, pz, vx, vy, vz, nm):
@@ -420,17 +426,17 @@ class body(object):
 		return [force_x, force_y, force_z]
 #data for solar system objects
 solar_system = {'Sun':[2e30, 0, 0, 0, 0, 0, 0],
-            	'Mercury':[3.3e23, 4.6e10, 0, 0, 0, 5.66e4, 0],#At perihelion
-              	'Venus':[4.87e24, 1.08e11, 0, 0, 0, 3.5e4, 0],
- 	            'Earth':[6e24, 1.5e11, 0, 0, 0, 3e4, 0],
-        	    'Mars':[6.4e23, 2.3e11, 0, 0, 0, 2.4e4, 0],
-              	'Jupiter':[1.9e27, 7.8e11, 0, 0, 0, 13070, 0],
-              	'Saturn':[5.7e26, 1.4e12, 0, 0, 0, 9690, 0],
-              	'Uranus':[8.7e25, 2.9e12, 0, 0, 0, 6800, 0],
-              	'Neptune':[1e26, 4.5e12, 0, 0, 0, 5430, 0],
-              	'Pluto':[1.3e22, 4.24e12, 0, 1.3e12, 0, 6100, 0],#At perihelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html
-              	'Halley':[2.2e14, -5e12, 0, 1.6e12, 0, 550, 0],#At aphelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/cometfact.html
-              	'Hale-Bopp':[1.3e16, 4.1e11, 4.1e11, 5.54e13, -77, 77, 0]
+                'Mercury':[3.3e23, 4.6e10, 0, 0, 0, 5.66e4, 0],#At perihelion
+                'Venus':[4.87e24, 1.08e11, 0, 0, 0, 3.5e4, 0],
+                'Earth':[6e24, 1.5e11, 0, 0, 0, 3e4, 0],
+                'Mars':[6.4e23, 2.3e11, 0, 0, 0, 2.4e4, 0],
+                'Jupiter':[1.9e27, 7.8e11, 0, 0, 0, 13070, 0],
+                'Saturn':[5.7e26, 1.4e12, 0, 0, 0, 9690, 0],
+                'Uranus':[8.7e25, 2.9e12, 0, 0, 0, 6800, 0],
+                'Neptune':[1e26, 4.5e12, 0, 0, 0, 5430, 0],
+                'Pluto':[1.3e22, 4.24e12, 0, 1.3e12, 0, 6100, 0],#At perihelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html
+                'Halley':[2.2e14, -5e12, 0, 1.6e12, 0, 550, 0],#At aphelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/cometfact.html
+                'Hale-Bopp':[1.3e16, 4.1e11, 4.1e11, 5.54e13, -77, 77, 0]
 }
 #comet1 = body(3e14, -4e9, 5e12, 0, 100, 0, 0) #escape
 #comet1 = body(3e14, -4e9, 5e12, 0, 1000, 1000, 0) #capture
@@ -448,7 +454,7 @@ class QProgBar(QProgressBar):
 	def update_value(progressBar):
 		progressBar.setValue(progress)
 #		print(progress)
-
+#set up bar
 bar = QProgBar(w)
 bar.resize(150, 40)
 bar.setValue(0)
@@ -456,8 +462,8 @@ bar.move(250, 400)
 #Timer for progressbar
 timer = QTimer()
 bar.connect(timer, SIGNAL('timeout()'), bar, SLOT('update_value()'))
-
-button1.clicked.connect(on_click_button1)	#connect the signal to the slot
+#connect the signal to the slot
+button1.clicked.connect(on_click_button1)
 button2.clicked.connect(on_click_button2)
 button3.clicked.connect(on_click_button3)
 button4.clicked.connect(on_click_button4)
