@@ -3,9 +3,12 @@ import sys
 #from PyQt4.QtCore import pyqtSlot, QTimer, SIGNAL, SLOT
 from PySide.QtGui import *
 from PySide.QtCore import QTimer, SIGNAL, SLOT
+import numpy as np
 from numpy import pi, sin, cos
 from random import random, uniform
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import mpl_toolkits.mplot3d.axes3d as p3
 from mpl_toolkits.mplot3d import Axes3D
 #NOTE: when using PyQt4 instead of PySide, uncomment all "@pyqtSlot()" lines
 bodies = []
@@ -153,7 +156,11 @@ checkbox2 = QCheckBox(w)
 checkbox2.move(250, 320)
 checkbox2.setChecked(False)
 checkbox2.setText('Show Legend')
-
+#Animated
+checkbox3 = QCheckBox(w)
+checkbox3.move(250, 340)
+checkbox3.setChecked(False)
+checkbox3.setText('Animated')
 #create events
 #@pyqtSlot()
 def on_activated1(text):
@@ -323,26 +330,49 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 		progress = time * 100 / duration 
 		print str(progress) + '%'	#shows progress
 #		time += timestep
-	fig = plt.figure()
-	ax = fig.gca(projection='3d')
-#	print bodies, old_bodies
-	for b in bodies:
-		#plot orbit for each body
-		ax.plot(b.xpos, b.ypos, b.zpos, label=b.nm)
-#		print b.xpos, b.ypos, b.zpos
-#		plt.xlim((-5e16, 5e16)); plt.ylim((-5e16, 5e16))
-	for c in old_bodies:
-		ax.plot(c.xpos, c.ypos, c.zpos, label=c.nm)
-#		print c.xpos, c.ypos, c.zpos
-	if checkbox1.isChecked() == True:
-		ax.set_xlim(-6e12, 6e12)
-		ax.set_ylim(-6e12, 6e12)
-		ax.set_zlim(-6e12, 6e12)
-	ax.set_xlabel('x'); ax.set_ylabel('y'); ax.set_zlabel('z')
-	if checkbox2.isChecked() == True:
-		plt.legend()
-	plt.show()
-	table_items(bodies)
+	if checkbox3.isChecked() == True:
+		fig = plt.figure()
+		ax = p3.Axes3D(fig)
+		positions = []
+		for b in bodies:
+			b.positions = np.array([b.xpos, b.ypos, b.zpos])
+			positions.append(b.positions)
+		for c in old_bodies:
+			old_positions = []
+			old_positions.append([b.xpos, b.ypos, b.zpos])
+#		print positions
+		paths = [ax.plot(particle[0, 0:1], particle[1, 0:1], particle[2, 0:1])[0] for particle in positions]
+		ax.set_xlim3d([-6e12, 6e12])
+		ax.set_xlabel('X')
+		ax.set_ylim3d([-6e12, 6e12])
+		ax.set_ylabel('Y')
+		ax.set_zlim3d([-6e12, 6e12])
+		ax.set_zlabel('Z')
+		ax.set_title('Animated Simulation')
+		path_ani = animation.FuncAnimation(fig, update_paths, num_steps, fargs=(positions, paths),
+                                           interval=1, blit=False)
+		plt.show()
+	else:
+		fig = plt.figure()
+		ax = fig.gca(projection='3d')
+#		print bodies, old_bodies
+		for b in bodies:
+			#plot orbit for each body
+			ax.plot(b.xpos, b.ypos, b.zpos, label=b.nm)
+#			print b.xpos, b.ypos, b.zpos
+#			plt.xlim((-5e16, 5e16)); plt.ylim((-5e16, 5e16))
+		for c in old_bodies:
+			ax.plot(c.xpos, c.ypos, c.zpos, label=c.nm)
+#			print c.xpos, c.ypos, c.zpos
+		if checkbox1.isChecked() == True:
+			ax.set_xlim(-6e12, 6e12)
+			ax.set_ylim(-6e12, 6e12)
+			ax.set_zlim(-6e12, 6e12)
+		ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+		if checkbox2.isChecked() == True:
+			plt.legend()
+		plt.show()
+		table_items(bodies)
 #merge two objects if too close together, momentum is conserved
 def merge(body1, body2):
 	new_name = body1.nm + '+' + body2.nm
@@ -355,6 +385,12 @@ def merge(body1, body2):
 	new_vz = (body1.mass * body1.velocity[2] + body2.mass * body2.velocity[2]) / new_mass
 	new_body = body(new_mass, new_px, new_py, new_pz, new_vx, new_vy, new_vz, new_name)
 	return new_body
+#update paths for animation
+def update_paths(num_steps, positions, paths):
+    for path, position in zip(paths, positions):
+        path.set_data(position[0:2, :num_steps])
+        path.set_3d_properties(position[2, :num_steps])
+    return paths
 
 class body(object):
 	def __init__(self, mass, px, py, pz, vx, vy, vz, nm):
@@ -414,9 +450,9 @@ class QProgBar(QProgressBar):
 #		print(progress)
 
 bar = QProgBar(w)
-bar.resize(150, 80)
+bar.resize(150, 40)
 bar.setValue(0)
-bar.move(250, 350)
+bar.move(250, 400)
 #Timer for progressbar
 timer = QTimer()
 bar.connect(timer, SIGNAL('timeout()'), bar, SLOT('update_value()'))
