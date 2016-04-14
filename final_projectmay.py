@@ -72,11 +72,6 @@ combobox1.addItem('Halley')
 combobox1.addItem('Hale-Bopp')
 combobox1.addItem('Random object')
 combobox1.move(250, 125)
-#checkbox for setting range limits
-checkbox1 = QCheckBox(w)
-checkbox1.move(250, 150)
-checkbox1.setChecked(False)
-checkbox1.setText('Set range for Solar System')
 #select test particles
 label2 = QLabel(w)
 label2.setText('Test Particles')
@@ -145,11 +140,6 @@ textbox14 = QLineEdit(w)
 textbox14.move(250, 60)
 textbox14.resize(150, 30)
 textbox14.setText('Number of years')
-#checkbox for showing legend
-checkbox2 = QCheckBox(w)
-checkbox2.move(250, 320)
-checkbox2.setChecked(False)
-checkbox2.setText('Show Legend')
 #create action
 def on_activated1(text):
 	text_str = str(text)
@@ -308,10 +298,10 @@ def simulate(bodies, timestep, num_steps):
 			#store position in list
 	fin = mlab.figure('Universe', bgcolor=(0, 0, 0))
 	for b in bodies:
-		r = round(uniform(-0.1, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(-0.1, 1.0), 1)
+		r = round(uniform(0.0, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(-0.1, 1.0), 1)
 		mlab.points3d(b.xpos, b.ypos, b.zpos, color=(r,g,d), figure=fin, name=b.nm)
 	for c in old_bodies:
-		r = round(uniform(-0.1, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(-0.1, 1.0), 1)
+		r = round(uniform(0.0, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(-0.1, 1.0), 1)
 		mlab.points3d(c.xpos, c.ypos, c.zpos, color=(r,g,d), figure=fin, name=c.nm)
 
 def merge(body1, body2):
