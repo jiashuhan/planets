@@ -5,7 +5,7 @@ from numpy import pi, sin, cos
 from random import random, uniform
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from mayavi import mlab
+from mayavi import mlab, tools
 
 bodies = []
 G = 6.67e-11
@@ -298,11 +298,11 @@ def simulate(bodies, timestep, num_steps):
 			#store position in list
 	fin = mlab.figure('Universe', bgcolor=(0, 0, 0))
 	for b in bodies:
-		r = round(uniform(0.0, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(-0.1, 1.0), 1)
-		mlab.points3d(b.xpos, b.ypos, b.zpos, color=(r,g,d), figure=fin, name=b.nm)
+		r = round(uniform(0.0, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(0.0, 1.0), 1)
+		mlab.points3d(b.xpos, b.ypos, b.zpos, color=(r,g,d), figure=fin, mask_points=int(num_steps/31), name=b.nm)
 	for c in old_bodies:
-		r = round(uniform(0.0, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(-0.1, 1.0), 1)
-		mlab.points3d(c.xpos, c.ypos, c.zpos, color=(r,g,d), figure=fin, name=c.nm)
+		r = round(uniform(0.0, 1.0), 1); g = round(uniform(-0.1, 1.0), 1); d = round(uniform(0.0, 1.0), 1)
+		mlab.points3d(c.xpos, c.ypos, c.zpos, color=(r,g,d), figure=fin, mask_points=int(num_steps/31), name=c.nm)
 
 def merge(body1, body2):
 	new_name = body1.nm + '+' + body2.nm
@@ -366,7 +366,8 @@ test_particles = {'Test Particle 1':[2e30, 1e12, 0, 0, 0, 1e4, 0],	#1, 2 - fork
                   'Test Particle 4':[2e30, 1e12, 0, 1e12, -1e3, -1e3, -1e3]	
 }
 
-button1.clicked.connect(on_click_button1)	#connect the signal to the slot
+#connect the signal to the slot
+button1.clicked.connect(on_click_button1)
 button2.clicked.connect(on_click_button2)
 button3.clicked.connect(on_click_button3)
 button4.clicked.connect(on_click_button4)
