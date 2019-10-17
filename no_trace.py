@@ -336,20 +336,20 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 		time = i / steps_per_day
 		progress = time * 100 / duration 
 		print(str(progress) + '%')	#shows progress
-#		time += timestep
 	#animate the plot if checkbox3 is checked, not fully compatible with merge
 	if checkbox3.isChecked():
 		fig = plt.figure()
 		ax = p3.Axes3D(fig)
 		positions = []
-		for b in bodies:
-			b.positions = np.array([b.xpos, b.ypos, b.zpos])
-			positions.append(b.positions)
-		for c in old_bodies:
-			old_positions = []
-			old_positions.append([c.xpos, c.ypos, c.zpos])
-#		print(positions)
-		paths = [ax.plot(particle[0, 0:1], particle[1, 0:1], particle[2, 0:1])[0] for particle in positions]
+		for i in range(num_steps):#len(bodies[0].xpos)):
+			x, y, z = np.array([]), np.array([]), np.array([])
+			for b in bodies:
+				x = np.append(x, b.xpos[i])
+				y = np.append(y, b.ypos[i])
+				z = np.append(z, b.zpos[i])	
+			positions.append((x, y, z))
+		
+		points, = ax.plot([], [], [], '.')
 		ax.set_xlim3d([-6e12, 6e12])
 		ax.set_xlabel('X')
 		ax.set_ylim3d([-6e12, 6e12])
@@ -357,7 +357,7 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 		ax.set_zlim3d([-6e12, 6e12])
 		ax.set_zlabel('Z')
 		ax.set_title('Animated Simulation')
-		path_ani = animation.FuncAnimation(fig, update_paths, num_steps, fargs=(positions, paths),
+		path_ani = animation.FuncAnimation(fig, update_paths, num_steps, fargs=(positions, points),
                                            interval=1, blit=False)
 		plt.show()
 	else:#make static plot
@@ -383,6 +383,11 @@ def simulate(bodies, timestep, num_steps, steps_per_day):
 			plt.legend()
 		plt.show()
 		table_items(bodies)
+#update paths for animation
+def update_paths(i, positions, points):
+	points.set_data(positions[i][0], positions[i][1])
+	points.set_3d_properties(positions[i][2])
+	return points
 #merge two objects if too close together, momentum is conserved
 def merge(body1, body2):
 	new_name = body1.nm + '+' + body2.nm
@@ -395,12 +400,6 @@ def merge(body1, body2):
 	new_vz = (body1.mass * body1.velocity[2] + body2.mass * body2.velocity[2]) / new_mass
 	new_body = body(new_mass, new_px, new_py, new_pz, new_vx, new_vy, new_vz, new_name)
 	return new_body
-#update paths for animation
-def update_paths(num_steps, positions, paths):
-	for path, position in zip(paths, positions):
-		path.set_data(position[0:2, :num_steps])
-		path.set_3d_properties(position[2, :num_steps])
-	return paths
 
 class body(object):
 	def __init__(self, mass, px, py, pz, vx, vy, vz, nm):
