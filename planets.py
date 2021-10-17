@@ -210,20 +210,28 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
     return objects, old_objects
 
 # Animate the orbits; doesn't work with merge
-def animate(objects, num_steps, save_file=False):
+def animate(objects, num_steps, hide_trace=False, save_file=False):
     fig = plt.figure()
     ax = p3.Axes3D(fig, auto_add_to_figure=False)
     fig.add_axes(ax)
-    positions = [] # list of paths
+    positions = [] # list of paths; the indices are: [object][step, direction (xyz)]
     for obj in objects:
         positions.append(obj.path)
-    paths = [ax.plot(i[0:1,0], i[0:1,1], i[0:1,2])[0] for i in positions]
+    if not hide_trace:
+        paths = [ax.plot(i[0:1,0], i[0:1,1], i[0:1,2])[0] for i in positions]
+    else:
+        points = [ax.plot([], [], [], '.')[0] for i in positions]
+        #points, = ax.plot([], [], [], '.') # plot the points together
     ax.set_xlim3d([-6e12,6e12]); ax.set_xlabel('X')
     ax.set_ylim3d([-6e12,6e12]); ax.set_ylabel('Y')
     ax.set_zlim3d([-6e12,6e12]); ax.set_zlabel('Z')
     ax.set_title('Animated Simulation')
-    anim = animation.FuncAnimation(fig, update_paths, int(num_steps), 
+    if not hide_trace:
+        anim = animation.FuncAnimation(fig, update_paths, int(num_steps), 
                 fargs=(positions, paths), interval=1, blit=False)
+    else:
+        anim = animation.FuncAnimation(fig, no_trace_update, int(num_steps), 
+                fargs=(np.array(positions), points), interval=1, blit=False)
     if save_file:
         anim.save('results/paths.mp4', fps=15, extra_args=['-vcodec', 'libx264'])
     plt.show()
@@ -235,6 +243,15 @@ def update_paths(num_steps, positions, paths):
         path.set_data(np.transpose(position[:num_steps, 0:2]))
         path.set_3d_properties(position[:num_steps, 2])
     return paths
+
+def no_trace_update(step, positions, points):
+    for position, point in zip(positions, points):
+        point.set_data(position[step,0], position[step,1])
+        point.set_3d_properties(position[step,2])
+    # Use these if you want to plot the points together
+    #points.set_data(positions[:,step,0], positions[:,step,1])
+    #points.set_3d_properties(positions[:,step,2])
+    return points
 
 # Plot orbits
 def plot(objects, old_objects, solar_range, legend):
@@ -295,7 +312,7 @@ w.setWindowTitle('Particle Control')
 # Checkbox for setting range limits to solar system
 checkbox1 = QCheckBox(w)
 checkbox1.move(250, 155)
-checkbox1.setChecked(False)
+checkbox1.setChecked(True)
 checkbox1.setText('Set range for Solar System')
 # Checkbox for showing legend
 checkbox2 = QCheckBox(w)
@@ -307,11 +324,16 @@ checkbox3 = QCheckBox(w)
 checkbox3.move(250, 340)
 checkbox3.setChecked(False)
 checkbox3.setText('Animated')
-# Checkbox for saving animation to file
+# Checkbox for showing no trace of orbit
 checkbox4 = QCheckBox(w)
 checkbox4.move(250, 360)
 checkbox4.setChecked(False)
-checkbox4.setText('Save animation to file')
+checkbox4.setText('Hide orbits')
+# Checkbox for saving animation to file
+checkbox5 = QCheckBox(w)
+checkbox5.move(250, 380)
+checkbox5.setChecked(False)
+checkbox5.setText('Save animation to file')
 
 # Textboxes for entering parameters
 textbox1 = QLineEdit(w); textbox1.move(20, 20); textbox1.resize(200, 40)
@@ -478,7 +500,7 @@ def on_click_button2():
         return 1
     objects, old_objects = simulate(objects, num_steps, sample_rate)
     if checkbox3.isChecked():
-        animate(objects, num_steps, checkbox4.isChecked())
+        animate(objects, num_steps, checkbox4.isChecked(), checkbox5.isChecked())
     else:
         plot(objects, old_objects, checkbox1.isChecked(), checkbox2.isChecked())
 
@@ -510,7 +532,7 @@ def on_click_button3():
     objects = gen_random(N, r0, mmax, vmax)
     objects, old_objects = simulate(objects, num_steps, sample_rate)
     if checkbox3.isChecked():
-        animate(objects, num_steps, checkbox4.isChecked())
+        animate(objects, num_steps, checkbox4.isChecked(), checkbox5.isChecked())
     else:
         plot(objects, old_objects, checkbox1.isChecked(), checkbox2.isChecked())
 
