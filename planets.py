@@ -45,8 +45,7 @@ class particle(object):
 
     # Updates position and velocity of object
     def update(self, force, dt):
-        acc = force/self.mass
-        self.vel += acc * dt
+        self.vel += force/self.mass * dt
         self.pos += self.vel * dt # orbits won't close if order swapped
         self.path = np.vstack((self.path, self.pos))
 
@@ -80,8 +79,8 @@ def merge(obj1, obj2):
 
     Returns
     -------
-    obj3: <class '__main__.particle'> object
-        New object created from merger.
+    (obj1, obj2, obj3): tuple, <class '__main__.particle'> object
+        obj3: new object created from merger.
     """
     name = obj1.nm + '+' + obj2.nm
     pos = (obj1.pos + obj2.pos) / 2
@@ -91,6 +90,7 @@ def merge(obj1, obj2):
     obj3.origin1 = obj1.nm
     obj3.origin2 = obj2.nm
     obj1.merged = True
+    obj2.merged = True
     return obj1, obj2, obj3
 
 def randomize(r0, mmax, vmax):
@@ -119,10 +119,10 @@ def randomize(r0, mmax, vmax):
     theta = np.random.uniform(0, np.pi)
     phi = np.random.uniform(0, 2*np.pi)
     mass = np.random.uniform(0, mmax)
-    px = r * np.sin(theta)*np.cos(phi)
-    py = r * np.sin(theta)*np.sin(phi)
-    pz = r * np.cos(theta)
-    pos = np.array([px, py, pz])
+    x = r * np.sin(theta)*np.cos(phi)
+    y = r * np.sin(theta)*np.sin(phi)
+    z = r * np.cos(theta)
+    pos = np.array([x, y, z])
     vel = np.random.uniform(-1, 1, size=3)*vmax
     return mass, pos, vel
 
@@ -167,7 +167,7 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
     objects: list
         List of all objects in the simulation.
 
-    num_steps: float
+    num_steps: int
         Total number of steps in the simulation.
 
     sample_rate: float
@@ -185,7 +185,7 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
         List of merged objects.
     """
     old_objects = []
-    for step in range(int(num_steps)):
+    for step in range(num_steps):
         forces = np.zeros(3) # stores forces acting on all objects
         for obj1 in objects:
             Fsum = np.zeros(3) # net force acting on object 1
@@ -193,7 +193,7 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
                 if obj1 != obj2 and obj2.mergeable(obj1):
                     r = np.sqrt(np.sum((obj1.pos-obj2.pos)**2))
                     # Merging works only when sample_rate > 100
-                    if sample_rate > 100 and r < rcrit:
+                    if sample_rate >= 100 and r < rcrit:
                         objects.remove(obj1)
                         objects.remove(obj2)
                         obj1, obj2, obj3 = merge(obj1, obj2)
@@ -276,15 +276,15 @@ def plot(objects, old_objects, solar_range, legend):
 
 # Data for solar system objects
 solar_system = {'Sun':[2e30, 0, 0, 0, 0, 0, 0],
-                'Mercury':[3.3e23, 4.6e10, 0, 0, 0, 5.66e4, 0], # At perihelion
-                'Venus':[4.87e24, 1.08e11, 0, 0, 0, 3.5e4, 0],
+                'Mercury':[3.301e23, 4.6e10, 0, 0, 0, 5.66e4, 0], # At perihelion
+                'Venus':[4.867e24, 1.08e11, 0, 0, 0, 3.5e4, 0],
                 'Earth':[6e24, 1.5e11, 0, 0, 0, 3e4, 0],
-                'Mars':[6.4e23, 2.3e11, 0, 0, 0, 2.4e4, 0],
-                'Jupiter':[1.9e27, 7.8e11, 0, 0, 0, 13070, 0],
-                'Saturn':[5.7e26, 1.4e12, 0, 0, 0, 9690, 0],
-                'Uranus':[8.7e25, 2.9e12, 0, 0, 0, 6800, 0],
-                'Neptune':[1e26, 4.5e12, 0, 0, 0, 5430, 0],
-                'Pluto':[1.3e22, 4.24e12, 0, 1.3e12, 0, 6100, 0], # At perihelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html
+                'Mars':[6.417e23, 2.3e11, 0, 0, 0, 2.4e4, 0],
+                'Jupiter':[1.898e27, 7.8e11, 0, 0, 0, 13070, 0],
+                'Saturn':[5.683e26, 1.4e12, 0, 0, 0, 9690, 0],
+                'Uranus':[8.681e25, 2.9e12, 0, 0, 0, 6800, 0],
+                'Neptune':[1.024e26, 4.5e12, 0, 0, 0, 5430, 0],
+                'Pluto':[1.303e22, 4.24e12, 0, 1.3e12, 0, 6100, 0], # At perihelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html
                 'Halley':[2.2e14, -5e12, 0, 1.6e12, 0, 550, 0], # At aphelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/cometfact.html
                 'Hale-Bopp':[1.3e16, 4.1e11, 4.1e11, 5.54e13, -77, 77, 0]
 }
@@ -311,27 +311,27 @@ w.setWindowTitle('Particle Control')
 
 # Checkbox for setting range limits to solar system
 checkbox1 = QCheckBox(w)
-checkbox1.move(250, 155)
+checkbox1.move(250, 290)
 checkbox1.setChecked(True)
 checkbox1.setText('Set range for Solar System')
 # Checkbox for showing legend
 checkbox2 = QCheckBox(w)
-checkbox2.move(250, 320)
+checkbox2.move(250, 310)
 checkbox2.setChecked(False)
 checkbox2.setText('Show Legend')
 # Checkbox for animation
 checkbox3 = QCheckBox(w)
-checkbox3.move(250, 340)
+checkbox3.move(250, 330)
 checkbox3.setChecked(False)
 checkbox3.setText('Animated')
 # Checkbox for showing no trace of orbit
 checkbox4 = QCheckBox(w)
-checkbox4.move(250, 360)
+checkbox4.move(250, 350)
 checkbox4.setChecked(False)
 checkbox4.setText('Hide orbits')
 # Checkbox for saving animation to file
 checkbox5 = QCheckBox(w)
-checkbox5.move(250, 380)
+checkbox5.move(250, 370)
 checkbox5.setChecked(False)
 checkbox5.setText('Save animation to file')
 
@@ -426,13 +426,13 @@ def on_activated1(text):
 # Drop-down list for selecting test particles
 label2 = QLabel(w)
 label2.setText('Test Particles')
-label2.move(250, 185)
+label2.move(250, 165)
 combobox2 = QComboBox(w)
 combobox2.addItem('Test Particle 1')
 combobox2.addItem('Test Particle 2')
 combobox2.addItem('Test Particle 3')
 combobox2.addItem('Test Particle 4')
-combobox2.move(250, 205)
+combobox2.move(250, 185)
 def on_activated2(text):
     text_str = str(text)
     textbox1.setText(str(test_particles[text_str][1]))
@@ -465,8 +465,7 @@ def table_items(objects): # Update table of objects
 # Button for adding new particle
 button1 = QPushButton('Add Particle', w)
 button1.setToolTip('Add the particle to list')
-button1.resize(button1.sizeHint())
-button1.move(60, 400)
+button1.resize(button1.sizeHint()); button1.move(250, 220)
 def on_click_button1():
     try:
         pos = np.array([float(textbox1.text()),float(textbox2.text()),float(textbox3.text())])
@@ -483,8 +482,7 @@ def on_click_button1():
 # Button for starting the simulation
 button2 = QPushButton('Start', w)
 button2.setToolTip('Start simulation')
-button2.resize(button2.sizeHint())
-button2.move(250, 240)
+button2.resize(button2.sizeHint()); button2.move(250, 400)
 def on_click_button2():
     try:
         sample_rate = int(textbox13.text())
@@ -493,7 +491,7 @@ def on_click_button2():
         sample_rate = 1
         num_years = 50
         print("Warning: number of steps not entered; set to default values.")
-    num_steps = 365.25*sample_rate*num_years
+    num_steps = int(365.25*sample_rate*num_years)
     global objects
     if len(objects) == 0:
         print("Error: no objects entered.")
@@ -507,8 +505,7 @@ def on_click_button2():
 # Button for running simulation with all random particles
 button3 = QPushButton('Random', w)
 button3.setToolTip('Start simulation with all random particles')
-button3.resize(button3.sizeHint())
-button3.move(480, 420)
+button3.resize(button3.sizeHint()); button3.move(480, 420)
 def on_click_button3():
     try:
         N = int(textbox9.text())
@@ -528,7 +525,7 @@ def on_click_button3():
         sample_rate = 1
         num_years = 50
         print("Warning: number of steps not entered; set to default values.")
-    num_steps = 365.25*sample_rate*num_years
+    num_steps = int(365.25*sample_rate*num_years)
     objects = gen_random(N, r0, mmax, vmax)
     objects, old_objects = simulate(objects, num_steps, sample_rate)
     if checkbox3.isChecked():
@@ -539,7 +536,7 @@ def on_click_button3():
 # Button for clearing old list of objects
 button4 = QPushButton('Reset', w)
 button4.setToolTip('Clear old list of objects')
-button4.resize(button4.sizeHint()); button4.move(250, 270)
+button4.resize(button4.sizeHint()); button4.move(250, 430)
 def on_click_button4():
     global objects
     objects = []
@@ -561,9 +558,9 @@ def on_click_button4():
     table.setRowCount(0)
     plt.close()
 
-button5 = QPushButton('Quick add', w)
+button5 = QPushButton('Quick Add', w)
 button5.setToolTip('Add all solar system objects')
-button5.resize(button5.sizeHint()); button5.move(60, 430)
+button5.resize(button5.sizeHint()); button5.move(250, 250)
 def on_click_button5():
     for i in solar_system.keys():
         on_activated1(i)
