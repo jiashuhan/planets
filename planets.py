@@ -19,20 +19,26 @@ class particle(object):
     mass: float
         Mass of object in kg
 
-    pos: numpy.ndarray, float
-        Initial position vector of object, in m
+    x, y, z: float
+        Initial position of object, in m
 
-    vel: numpy.ndarray, float
-        Initial velocity vector of object, in m/s
+    vx, vy, vz: float
+        Initial velocity of object, in m/s
 
     nm: str
         Name of object
+
+    Note
+    ----
+    Runs much faster with Python lists than numpy.ndarray
     """
-    def __init__(self, mass, pos, vel, nm):
+    def __init__(self, mass, x, y, z, vx, vy, vz, nm):
         self.mass = mass
-        self.pos = pos # current position 
-        self.vel = vel # current velocity
-        self.path = self.pos # history of all positions
+        self.pos = [x, y, z] # current position 
+        self.vel = [vx, vy, vz] # current velocity
+        self.path_x = [x] # history of all positions
+        self.path_y = [y]
+        self.path_z = [z]
         self.nm = nm
         self.merged = False # merge status
         self.origin1 = None # name of progenitor 1
@@ -44,10 +50,24 @@ class particle(object):
         return self.origin1 != other.nm and self.origin2 != other.nm
 
     # Updates position and velocity of object
-    def update(self, force, dt):
-        self.vel += force/self.mass * dt
-        self.pos += self.vel * dt # orbits won't close if order swapped
-        self.path = np.vstack((self.path, self.pos))
+    def update(self, force_x, force_y, force_z, dt):
+        self.vel[0] += force_x / self.mass * dt
+        self.vel[1] += force_y / self.mass * dt
+        self.vel[2] += force_z / self.mass * dt
+        # orbits won't close if order swapped
+        self.pos[0] += self.vel[0] * dt
+        self.pos[1] += self.vel[1] * dt
+        self.pos[2] += self.vel[2] * dt
+        self.path_x.append(self.pos[0])
+        self.path_y.append(self.pos[1])
+        self.path_z.append(self.pos[2])
+
+    def distance(self, other):
+        dx = other.pos[0] - self.pos[0]
+        dy = other.pos[1] - self.pos[1]
+        dz = other.pos[2] - self.pos[2]
+        r = (dx**2 + dy**2 + dz**2)**(1/2.)
+        return r
 
     def gravity(self, other):
         """
@@ -60,13 +80,18 @@ class particle(object):
 
         Returns
         -------
-        force: numpy.ndarray, float
+        force: tuple, float
             Force vector for self, pointing towards other.
         """
-        r = other.pos - self.pos # displacement
-        rnorm = np.sqrt(np.sum(r**2))
-        force = 6.67e-11*self.mass*other.mass*r/rnorm**3
-        return force
+        dx = other.pos[0] - self.pos[0]
+        dy = other.pos[1] - self.pos[1]
+        dz = other.pos[2] - self.pos[2]
+        r = (dx**2 + dy**2 + dz**2)**(1/2)
+        force = 6.67e-11 * self.mass * other.mass / r**2
+        force_x = force * dx / r
+        force_y = force * dy / r
+        force_z = force * dz / r
+        return force_x, force_y, force_z
 
 def merge(obj1, obj2):
     """
@@ -80,13 +105,17 @@ def merge(obj1, obj2):
     Returns
     -------
     (obj1, obj2, obj3): tuple, <class '__main__.particle'> object
-        obj3: new object created from merger.
+        input objects and the new object created from merger.
     """
     name = obj1.nm + '+' + obj2.nm
-    pos = (obj1.pos + obj2.pos) / 2
+    x = (obj1.pos[0] + obj2.pos[0]) / 2
+    y = (obj1.pos[1] + obj2.pos[1]) / 2
+    z = (obj1.pos[2] + obj2.pos[2]) / 2
     mass = obj1.mass + obj2.mass
-    vel = (obj1.mass * obj1.vel + obj2.mass * obj2.vel)/mass 
-    obj3 = particle(mass, pos, vel, name)
+    vx = (obj1.mass * obj1.vel[0] + obj2.mass * obj2.vel[0])/mass
+    vy = (obj1.mass * obj1.vel[1] + obj2.mass * obj2.vel[1])/mass
+    vz = (obj1.mass * obj1.vel[2] + obj2.mass * obj2.vel[2])/mass
+    obj3 = particle(mass, x, y, z, vx, vy, vz, name)
     obj3.origin1 = obj1.nm
     obj3.origin2 = obj2.nm
     obj1.merged = True
@@ -122,9 +151,8 @@ def randomize(r0, mmax, vmax):
     x = r * np.sin(theta)*np.cos(phi)
     y = r * np.sin(theta)*np.sin(phi)
     z = r * np.cos(theta)
-    pos = np.array([x, y, z])
     vel = np.random.uniform(-1, 1, size=3)*vmax
-    return mass, pos, vel
+    return mass, x, y, z, vel[0], vel[1], vel[2]
 
 def gen_random(N, r0, mmax, vmax):
     """
@@ -151,8 +179,8 @@ def gen_random(N, r0, mmax, vmax):
     """
     objects = []
     for i in range(N):
-        mass, pos, vel = randomize(r0, mmax, vmax)
-        random_obj = particle(mass, pos, vel, str(i))
+        mass, x, y, z, vx, vy, vz = randomize(r0, mmax, vmax)
+        random_obj = particle(mass, x, y, z, vx, vy, vz, str(i))
         objects.append(random_obj)
     return objects
 
@@ -186,14 +214,17 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
     """
     old_objects = []
     for step in range(num_steps):
-        forces = np.zeros(3) # stores forces acting on all objects
+        forces_x = []
+        forces_y = []
+        forces_z = []
         for obj1 in objects:
-            Fsum = np.zeros(3) # net force acting on object 1
+            total_fx = 0
+            total_fy = 0
+            total_fz = 0
             for obj2 in objects:
                 if obj1 != obj2 and obj2.mergeable(obj1):
-                    r = np.sqrt(np.sum((obj1.pos-obj2.pos)**2))
                     # Merging works only when sample_rate > 100
-                    if sample_rate >= 100 and r < rcrit:
+                    if sample_rate >= 100 and obj1.distance(obj2) < rcrit:
                         objects.remove(obj1)
                         objects.remove(obj2)
                         obj1, obj2, obj3 = merge(obj1, obj2)
@@ -201,37 +232,45 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
                         old_objects.append(obj2)
                         objects.append(obj3)
                     else: # if the two are distinct
-                        Fsum += obj1.gravity(obj2)
-            forces = np.vstack((forces, Fsum))
-        forces = forces[1:] # remove the extra row
-        for i in range(forces.shape[0]): # update all objects
-            objects[i].update(forces[i], 86400/sample_rate)
+                        force = obj1.gravity(obj2)
+                        total_fx += force[0]
+                        total_fy += force[1]
+                        total_fz += force[2]
+            forces_x.append(total_fx)
+            forces_y.append(total_fy)
+            forces_z.append(total_fz)
+        for i in range(len(forces_x)): # update all objects
+            objects[i].update(forces_x[i], forces_y[i], forces_z[i], 86400/sample_rate)
         print('%.2f'%(step/num_steps*100), '%') # print progress
     return objects, old_objects
 
 # Animate the orbits; doesn't work with merge
-def animate(objects, num_steps, hide_trace=False, save_file=False):
+def animate(objects, num_steps, solar_range, hide_trace=False, save_file=False):
     fig = plt.figure()
     ax = p3.Axes3D(fig, auto_add_to_figure=False)
     fig.add_axes(ax)
-    positions = [] # list of paths; the indices are: [object][step, direction (xyz)]
+    positions = [] # list of paths; the indices are: [object][direction (xyz),step]
     for obj in objects:
-        positions.append(obj.path)
+        positions.append(np.array([obj.path_x, obj.path_y, obj.path_z]))
     if not hide_trace:
-        paths = [ax.plot(i[0:1,0], i[0:1,1], i[0:1,2])[0] for i in positions]
+        paths = [ax.plot(i[0,0:1], i[1,0:1], i[2,0:1])[0] for i in positions]
     else:
         points = [ax.plot([], [], [], '.')[0] for i in positions]
         #points, = ax.plot([], [], [], '.') # plot the points together
-    ax.set_xlim3d([-6e12,6e12]); ax.set_xlabel('X')
-    ax.set_ylim3d([-6e12,6e12]); ax.set_ylabel('Y')
-    ax.set_zlim3d([-6e12,6e12]); ax.set_zlabel('Z')
+    if solar_range:
+        ax.set_xlim3d([-6e12,6e12])
+        ax.set_ylim3d([-6e12,6e12])
+        ax.set_zlim3d([-6e12,6e12])
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
     ax.set_title('Animated Simulation')
     if not hide_trace:
-        anim = animation.FuncAnimation(fig, update_paths, int(num_steps), 
+        anim = animation.FuncAnimation(fig, update_paths, num_steps,
                 fargs=(positions, paths), interval=1, blit=False)
     else:
-        anim = animation.FuncAnimation(fig, no_trace_update, int(num_steps), 
-                fargs=(np.array(positions), points), interval=1, blit=False)
+        anim = animation.FuncAnimation(fig, no_trace_update, num_steps,
+                fargs=(positions, points), interval=1, blit=False)
     if save_file:
         anim.save('results/paths.mp4', fps=15, extra_args=['-vcodec', 'libx264'])
     plt.show()
@@ -240,17 +279,18 @@ def animate(objects, num_steps, hide_trace=False, save_file=False):
 # Update paths for animation
 def update_paths(num_steps, positions, paths):
     for path, position in zip(paths, positions):
-        path.set_data(np.transpose(position[:num_steps, 0:2]))
-        path.set_3d_properties(position[:num_steps, 2])
+        path.set_data(position[0:2, :num_steps])
+        path.set_3d_properties(position[2, :num_steps])
     return paths
 
 def no_trace_update(step, positions, points):
     for position, point in zip(positions, points):
-        point.set_data(position[step,0], position[step,1])
-        point.set_3d_properties(position[step,2])
+        point.set_data(position[0,step], position[1,step])
+        point.set_3d_properties(position[2,step])
     # Use these if you want to plot the points together
-    #points.set_data(positions[:,step,0], positions[:,step,1])
-    #points.set_3d_properties(positions[:,step,2])
+    #positions = np.array(positions)
+    #points.set_data(positions[:,0,step], positions[:,1,step])
+    #points.set_3d_properties(positions[:,2,step])
     return points
 
 # Plot orbits
@@ -258,17 +298,17 @@ def plot(objects, old_objects, solar_range, legend):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     for obj in objects:
-        ax.plot(obj.path[:,0], obj.path[:,1], obj.path[:,2], label=obj.nm)
+        ax.plot(obj.path_x, obj.path_y, obj.path_z, label=obj.nm)
     for obj in old_objects:
-        ax.plot(obj.path[:,0], obj.path[:,1], obj.path[:,2], label=obj.nm)
-    if checkbox1.isChecked(): # Set range for solar system
+        ax.plot(obj.path_x, obj.path_y, obj.path_z, label=obj.nm)
+    if solar_range: # Set range for solar system
         ax.set_xlim(-6e12, 6e12)
         ax.set_ylim(-6e12, 6e12)
         ax.set_zlim(-6e12, 6e12)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    if checkbox2.isChecked():
+    if legend:
         plt.legend()
     plt.savefig('results/orbits.pdf', bbox_inches='tight')
     plt.show()
@@ -468,14 +508,18 @@ button1.setToolTip('Add the particle to list')
 button1.resize(button1.sizeHint()); button1.move(250, 220)
 def on_click_button1():
     try:
-        pos = np.array([float(textbox1.text()),float(textbox2.text()),float(textbox3.text())])
-        vel = np.array([float(textbox4.text()),float(textbox5.text()),float(textbox6.text())])
+        x = float(textbox1.text())
+        y = float(textbox2.text())
+        z = float(textbox3.text())
+        vx = float(textbox4.text())
+        vy = float(textbox5.text())
+        vz = float(textbox6.text())
         mass = float(textbox7.text())
         name = str(textbox8.text())
     except ValueError:
         print("Error: invalid parameters.")
         return 1
-    new_obj = particle(mass, pos, vel, name)
+    new_obj = particle(mass, x, y, z, vx, vy, vz, name)
     objects.append(new_obj)
     table_items(objects) # Updates table
 
@@ -498,7 +542,7 @@ def on_click_button2():
         return 1
     objects, old_objects = simulate(objects, num_steps, sample_rate)
     if checkbox3.isChecked():
-        animate(objects, num_steps, checkbox4.isChecked(), checkbox5.isChecked())
+        animate(objects, num_steps, checkbox1.isChecked(), checkbox4.isChecked(), checkbox5.isChecked())
     else:
         plot(objects, old_objects, checkbox1.isChecked(), checkbox2.isChecked())
 
@@ -529,7 +573,7 @@ def on_click_button3():
     objects = gen_random(N, r0, mmax, vmax)
     objects, old_objects = simulate(objects, num_steps, sample_rate)
     if checkbox3.isChecked():
-        animate(objects, num_steps, checkbox4.isChecked(), checkbox5.isChecked())
+        animate(objects, num_steps, checkbox1.isChecked(), checkbox4.isChecked(), checkbox5.isChecked())
     else:
         plot(objects, old_objects, checkbox1.isChecked(), checkbox2.isChecked())
 
