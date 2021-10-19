@@ -2,13 +2,11 @@
 -----------------------------------------------------------------
 Simple solar system simulation, with basic graphic user interface
 -----------------------------------------------------------------
-It's probably more efficient to run the simulation by storing all
-position and velocity data in two arrays, instead of creating a 
-separate class for all the objects.
 """
 import sys, numpy as np, matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import mpl_toolkits.mplot3d.axes3d as p3
+from mpl_toolkits.mplot3d import proj3d
 
 class particle(object):
     """
@@ -20,10 +18,12 @@ class particle(object):
         Mass of object in kg
 
     x, y, z: float
-        Initial position of object, in m
+        Initial position (in m) of object, measured in the
+        inertial frame of the central body.
 
     vx, vy, vz: float
-        Initial velocity of object, in m/s
+        Initial velocity (in m/s) of object, measured in the
+        inertial frame of the central body.
 
     nm: str
         Name of object
@@ -95,7 +95,8 @@ class particle(object):
 
 def merge(obj1, obj2):
     """
-    Merge two objects if they get too close together. Momentum is conserved.
+    Merge two objects if they get too close together. 
+    Momentum is conserved.
 
     Parameters 
     ----------
@@ -130,13 +131,14 @@ def randomize(r0, mmax, vmax):
     Parameters
     ----------
     r0: float
-        Radius of the sphere within which the object is created.
+        Radius of the sphere [m] within which the object 
+        is created.
 
     mmax: float
-        Maximum mass of the object.
+        Maximum mass of the object [kg].
 
     vmax: float
-        Maximum speed in each direction.
+        Maximum speed [m/s] in each direction.
 
     Returns
     -------
@@ -164,13 +166,14 @@ def gen_random(N, r0, mmax, vmax):
         Number of objects to generate.
 
     r0: float
-        Radius of the sphere within which the objects are created.
+        Radius of the sphere [m] within which the objects
+        are created.
 
     mmax: float
-        Maximum mass of the objects.
+        Maximum mass [kg] of the objects.
 
     vmax: float
-        Maximum speed in each direction.
+        Maximum speed [m/s] in each direction.
 
     Returns
     -------
@@ -202,7 +205,7 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
         Number of steps per day.
 
     rcrit: float
-        Optional. Distance threshold for merger, in m.
+        Optional. Distance threshold for merger [m]
 
     Returns
     -------
@@ -245,7 +248,8 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
     return objects, old_objects
 
 # Animate the orbits; doesn't work with merge
-def animate(objects, num_steps, solar_range, hide_trace=False, save_file=False):
+def animate(objects, num_steps, sample_rate, set_range, 
+            hide_trace=False, save_file=False, radius=40):
     fig = plt.figure()
     ax = p3.Axes3D(fig, auto_add_to_figure=False)
     fig.add_axes(ax)
@@ -257,36 +261,43 @@ def animate(objects, num_steps, solar_range, hide_trace=False, save_file=False):
     else:
         points = [ax.plot([], [], [], '.')[0] for i in positions]
         #points, = ax.plot([], [], [], '.') # plot the points together
-    if solar_range:
-        ax.set_xlim3d([-6e12,6e12])
-        ax.set_ylim3d([-6e12,6e12])
-        ax.set_zlim3d([-6e12,6e12])
+    if set_range:
+        r = 149597870700*radius
+        ax.set_xlim3d([-r,r])
+        ax.set_ylim3d([-r,r])
+        ax.set_zlim3d([-r,r])
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title('Animated Simulation')
+    title = ax.text2D(0.5, 0.95, '', horizontalalignment='center',
+                      fontsize=14, transform=ax.transAxes)
     if not hide_trace:
         anim = animation.FuncAnimation(fig, update_paths, num_steps,
-                fargs=(positions, paths), interval=1, blit=False)
+                fargs=(positions, paths, title, sample_rate), interval=1, blit=False)
     else:
-        anim = animation.FuncAnimation(fig, no_trace_update, num_steps,
-                fargs=(positions, points), interval=1, blit=False)
+        anim = animation.FuncAnimation(fig, no_trace_update,
+                fargs=(positions, points, title, sample_rate), interval=1, blit=False)
     if save_file:
-        anim.save('results/paths.mp4', fps=15, extra_args=['-vcodec', 'libx264'])
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=12, metadata=dict(artist='Me'), bitrate=1800)
+        anim.save('results/paths.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
     plt.show()
-    return 0
+    return anim
 
 # Update paths for animation
-def update_paths(num_steps, positions, paths):
-    for path, position in zip(paths, positions):
+def update_paths(num_steps, positions, paths, title, sample_rate):
+    for path, position in zip(paths, positions): # for each object
         path.set_data(position[0:2, :num_steps])
         path.set_3d_properties(position[2, :num_steps])
-    return paths
+        title.set_text('JD %.1f'%(2451545.0+num_steps/sample_rate))
+    return paths, title
 
-def no_trace_update(step, positions, points):
+def no_trace_update(step, positions, points, title, sample_rate):
     for position, point in zip(positions, points):
-        point.set_data(position[0,step], position[1,step])
-        point.set_3d_properties(position[2,step])
+        num_steps = position.shape[1] # needs to be looped back manually
+        point.set_data(position[0,step%num_steps], position[1,step%num_steps])
+        point.set_3d_properties(position[2,step%num_steps])
+    title.set_text('JD %.1f'%(2451545.0+step%num_steps/sample_rate))
     # Use these if you want to plot the points together
     #positions = np.array(positions)
     #points.set_data(positions[:,0,step], positions[:,1,step])
@@ -294,45 +305,134 @@ def no_trace_update(step, positions, points):
     return points
 
 # Plot orbits
-def plot(objects, old_objects, solar_range, legend):
+def plot(objects, old_objects, num_steps, sample_rate, set_range, legend, radius=40):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     for obj in objects:
         ax.plot(obj.path_x, obj.path_y, obj.path_z, label=obj.nm)
     for obj in old_objects:
         ax.plot(obj.path_x, obj.path_y, obj.path_z, label=obj.nm)
-    if solar_range: # Set range for solar system
-        ax.set_xlim(-6e12, 6e12)
-        ax.set_ylim(-6e12, 6e12)
-        ax.set_zlim(-6e12, 6e12)
+    if set_range: # Set range for plot
+        r = 149597870700*radius
+        ax.set_xlim(-r, r)
+        ax.set_ylim(-r, r)
+        ax.set_zlim(-r, r)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+    ax.set_title('JD %.1f'%(2451545.0+num_steps/sample_rate))
     if legend:
         plt.legend()
     plt.savefig('results/orbits.pdf', bbox_inches='tight')
     plt.show()
     table_items(objects)
 
-# Data for solar system objects
-solar_system = {'Sun':[2e30, 0, 0, 0, 0, 0, 0],
-                'Mercury':[3.301e23, 4.6e10, 0, 0, 0, 5.66e4, 0], # At perihelion
-                'Venus':[4.867e24, 1.08e11, 0, 0, 0, 3.5e4, 0],
-                'Earth':[6e24, 1.5e11, 0, 0, 0, 3e4, 0],
-                'Mars':[6.417e23, 2.3e11, 0, 0, 0, 2.4e4, 0],
-                'Jupiter':[1.898e27, 7.8e11, 0, 0, 0, 13070, 0],
-                'Saturn':[5.683e26, 1.4e12, 0, 0, 0, 9690, 0],
-                'Uranus':[8.681e25, 2.9e12, 0, 0, 0, 6800, 0],
-                'Neptune':[1.024e26, 4.5e12, 0, 0, 0, 5430, 0],
-                'Pluto':[1.303e22, 4.24e12, 0, 1.3e12, 0, 6100, 0], # At perihelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/plutofact.html
-                'Halley':[2.2e14, -5e12, 0, 1.6e12, 0, 550, 0], # At aphelion; http://nssdc.gsfc.nasa.gov/planetary/factsheet/cometfact.html
-                'Hale-Bopp':[1.3e16, 4.1e11, 4.1e11, 5.54e13, -77, 77, 0]
+def kepler2cartesian(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
+    """
+    Convert Keplerian orbital elements to state vectors in 
+    heliocentric cartesian coordinates in the J2000 ecliptic 
+    plane. The x-axis points toward the vernal equinox.
+
+    Parameters
+    ----------
+    e: float
+        Eccentricity [rad]
+
+    a: float
+        Semi-major axis [au]
+
+    i: float
+        Inclination [deg]
+
+    Ω: float
+        Longitude of the ascending node [deg]
+
+    ϖ: float
+        Longitude of periapsis [deg]
+
+    L: float
+        Mean longitude [deg] at given epoch
+
+    m1: float
+        Mass of orbiting object [kg]
+
+    m2: float, optional
+        Mass of central body, set to 1 solar mass by default
+
+    Returns
+    -------
+    x, y, z, vx, vy, vz: tuple
+        Position [m] and velocity [m/s] measured in the 
+        inertial frame of the central body.
+
+    Note
+    ----
+    e and a define the shape and size of the ellipse. i and 
+    Ω define the orientation of the orbital plane. ϖ defines
+    the orientation of the ellipse in the orbital plane and 
+    L defines the position of the orbiting body along the
+    ellipse at a specific time. Alternatively, one can use q
+    (periapsis) in place of a, and M (mean anomaly) or T (time
+    of perihelion passage) in place of L.
+
+    For planets, the elements used are e, a, i, Ω, ϖ, L.
+    """
+    ω = (ϖ - Ω)*np.pi/180 # argument of periapsis [rad]
+    i = i*np.pi/180
+    Ω = Ω*np.pi/180
+    M = L - ϖ # mean anomaly [deg]
+    E = ecc_anomaly(e, M)*np.pi/180 # eccentric anomaly
+    # heliocentric coordinates in orbital plane, z0=0
+    x0 = a*(np.cos(E)-e)
+    y0 = a*(1-e**2)**(1/2)*np.sin(E)
+    # ecliptic coordinates, in au
+    x = (np.cos(ω)*np.cos(Ω)-np.sin(ω)*np.sin(Ω)*np.cos(i))*x0+(-np.sin(ω)*np.cos(Ω)-np.cos(ω)*np.sin(Ω)*np.cos(i))*y0
+    y = (np.cos(ω)*np.sin(Ω)+np.sin(ω)*np.cos(Ω)*np.cos(i))*x0+(-np.sin(ω)*np.sin(Ω)+np.cos(ω)*np.cos(Ω)*np.cos(i))*y0
+    z = np.sin(ω)*np.sin(i)*x0+np.cos(ω)*np.sin(i)*y0
+    # find velocity in m/s
+    au = 149597870700
+    mu = 6.6743e-11*(m1+m2)
+    nu = 2*np.arctan(np.sqrt((1+e)/(1-e)) * np.tan(E/2))
+    r = a*au*(1-e*np.cos(E))
+    h = np.sqrt(mu*a*au*(1-e**2))
+    p = a*au*(1-e**2)
+    vx = (x*au*h*e/(r*p))*np.sin(nu)-(h/r)*(np.cos(Ω)*np.sin(ω+nu)+np.sin(Ω)*np.cos(ω+nu)*np.cos(i))
+    vy = (y*au*h*e/(r*p))*np.sin(nu)-(h/r)*(np.sin(Ω)*np.sin(ω+nu)-np.cos(Ω)*np.cos(ω+nu)*np.cos(i))
+    vz = (z*au*h*e/(r*p))*np.sin(nu)+(h/r)*(np.cos(ω+nu)*np.sin(i))
+    return x*au, y*au, z*au, vx, vy, vz
+
+# Solve for eccentric anomaly [deg] given e [rad] and M [deg]
+def ecc_anomaly(e, M, tolerance=0.01):
+    e_deg = e*180/np.pi
+    E = M+e_deg*np.sin(M*np.pi/180)
+    dE = 1
+    while dE > tolerance:
+        dM = M-(E-e_deg*np.sin(E*np.pi/180))
+        dE = dM/(1-e*np.cos(E*np.pi/180))
+        E += dE
+    return E # [deg]
+
+# Keplerian elements (e, a, i, Ω, ϖ, L) and masses of solar system objects.
+# J2000, http://www.met.rdg.ac.uk/~ross/Astronomy/Planets.html
+# Halley: Epoch 2449400.5 (1994-Feb-17.0), https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=1P
+# Hale-Bopp: Epoch 2454724.5 (2008-Sep-15.0)
+orbital_elements = {'Mercury':[0.20563069, 0.38709893, 7.00487, 48.33167, 77.45645, 252.25084, 3.301e23],
+                    'Venus':[0.00677323, 0.72333199, 3.39471, 76.68069, 131.53298, 181.97973, 4.867e24],
+                    'Earth':[0.01671022, 1.00000011, 0.00005, -11.26064, 102.94719, 100.46435, 5.972e24],
+                    'Mars':[0.09341233, 1.52366231, 1.85061, 49.57854, 336.04084, 355.45332, 6.417e23],
+                    'Jupiter':[0.04839266, 5.20336301, 1.30530, 100.55615, 14.75385, 34.40438, 1.898e27],
+                    'Saturn':[0.05415060, 9.53707032, 2.48446, 113.71504, 92.43194, 49.94432, 5.683e26],
+                    'Uranus':[0.04716771, 19.19126393, 0.76986, 74.22988, 170.96424, 313.23218, 8.681e25],
+                    'Neptune':[0.00858587, 30.06896348, 1.76917, 131.72169, 44.97135, 304.88003, 1.024e26],
+                    'Pluto':[0.24880766, 39.48168677, 17.14175, 110.30347, 224.06676, 238.92881, 1.303e22],
+                    'Halley':[0.96714, 17.834, 162.26, 58.42, 169.75, 208.13, 2.2e14],
+                    'Hale-Bopp':[0.99496070, 182.05197034, 89.21708989, 282.94875394, 53.61077446, 55.29041624, 1.3e16]
 }
-# comet1 = particle(3e14, np.array([-4e9, 5e12, 0]), np.array([100, 0, 0])) # escape
-# comet1 = particle(3e14, np.array([-4e9, 5e12, 0,]) np.array([1000, 1000, 0])) # capture
-# comet1 = particle(3e14, np.array([-4e9, 5e12, 2e12]), np.array([500, -1000, 2000]), 'Some comet')
-# objects for demonstration
-test_particles = {'Test Particle 1':[2e30, 1e12, 0, 0, 0, 1e4, 0],  # 1, 2 - fork
+# comet1 = particle(3e14, -4e9, 5e12, 0, 100, 0, 0) # escape
+# comet1 = particle(3e14, -4e9, 5e12, 0, 1000, 1000, 0) # capture
+# comet1 = particle(3e14, -4e9, 5e12, 2e12, 500, -1000, 2000, 'Some comet')
+# Some more presets: objects for demo
+test_particles = {'Test Particle 1':[2e30, 1e12, 0, 0, 0, 1e4, 0],  # 1, 2 - fork merge
                   'Test Particle 2':[2e30, -1e12, 0, 0, 0, 1e4, 0],
                   'Test Particle 3':[2e30, 1e12, 0, 0, 0, 1e3, 0],  # 3, 4 - spiral/solenoid
                   'Test Particle 4':[2e30, 1e12, 0, 1e12, -1e3, -1e3, -1e3] 
@@ -347,110 +447,108 @@ objects = []
 app = QApplication(sys.argv)
 w = QWidget()
 w.resize(640, 480)
-w.setWindowTitle('Particle Control')
+w.setWindowTitle('Settings')
 
 # Checkbox for setting range limits to solar system
-checkbox1 = QCheckBox(w)
-checkbox1.move(250, 290)
-checkbox1.setChecked(True)
-checkbox1.setText('Set range for Solar System')
+checkbox1 = QCheckBox(w); checkbox1.move(250, 290)
+checkbox1.setChecked(True); checkbox1.setText('Set range at          AU')
+textbox0 = QLineEdit(w); textbox0.move(350, 290)
+textbox0.resize(25, 20); textbox0.setText('40')
 # Checkbox for showing legend
-checkbox2 = QCheckBox(w)
-checkbox2.move(250, 310)
-checkbox2.setChecked(False)
-checkbox2.setText('Show Legend')
+checkbox2 = QCheckBox(w); checkbox2.move(250, 310)
+checkbox2.setChecked(False); checkbox2.setText('Show Legend')
 # Checkbox for animation
-checkbox3 = QCheckBox(w)
-checkbox3.move(250, 330)
-checkbox3.setChecked(False)
-checkbox3.setText('Animated')
+checkbox3 = QCheckBox(w); checkbox3.move(250, 330)
+checkbox3.setChecked(False); checkbox3.setText('Animated')
 # Checkbox for showing no trace of orbit
-checkbox4 = QCheckBox(w)
-checkbox4.move(250, 350)
-checkbox4.setChecked(False)
-checkbox4.setText('Hide orbits')
+checkbox4 = QCheckBox(w); checkbox4.move(250, 350)
+checkbox4.setChecked(False); checkbox4.setText('Hide orbits')
 # Checkbox for saving animation to file
-checkbox5 = QCheckBox(w)
-checkbox5.move(250, 370)
-checkbox5.setChecked(False)
-checkbox5.setText('Save animation to file')
+checkbox5 = QCheckBox(w); checkbox5.move(250, 370)
+checkbox5.setChecked(False); checkbox5.setText('Save animation to file')
 
 # Textboxes for entering parameters
-textbox1 = QLineEdit(w); textbox1.move(20, 20); textbox1.resize(200, 40)
-textbox1.setText('Enter Position (x)')
-textbox2 = QLineEdit(w); textbox2.move(20, 65); textbox2.resize(200, 40)
-textbox2.setText('Enter Position (y)')
-textbox3 = QLineEdit(w); textbox3.move(20, 110); textbox3.resize(200, 40)
-textbox3.setText('Enter Position (z)')
-textbox4 = QLineEdit(w); textbox4.move(20, 155); textbox4.resize(200, 40)
-textbox4.setText('Enter Velocity (x)')
-textbox5 = QLineEdit(w); textbox5.move(20, 200); textbox5.resize(200, 40)
-textbox5.setText('Enter Velocity (y)')
-textbox6 = QLineEdit(w); textbox6.move(20, 245); textbox6.resize(200, 40)
-textbox6.setText('Enter Velocity (z)')
-textbox7 = QLineEdit(w); textbox7.move(20, 290); textbox7.resize(200, 40)
-textbox7.setText('Enter Mass')
-textbox8 = QLineEdit(w); textbox8.move(20, 335); textbox8.resize(200, 40)
-textbox8.setText('Enter Name')
+label6 = QLabel(w); label6.setText('X (m)'); label6.move(20, 30)
+textbox1 = QLineEdit(w); textbox1.move(100, 20)
+textbox1.resize(120, 40); textbox1.setText('0')
+label7 = QLabel(w); label7.setText('Y (m)'); label7.move(20, 75)
+textbox2 = QLineEdit(w); textbox2.move(100, 65)
+textbox2.resize(120, 40); textbox2.setText('0')
+label8 = QLabel(w); label8.setText('Z (m)'); label8.move(20, 120)
+textbox3 = QLineEdit(w); textbox3.move(100, 110)
+textbox3.resize(120, 40); textbox3.setText('0')
+label9 = QLabel(w); label9.setText('Vx (m/s)'); label9.move(20, 165)
+textbox4 = QLineEdit(w); textbox4.move(100, 155)
+textbox4.resize(120, 40); textbox4.setText('1e7')
+label10 = QLabel(w); label10.setText('Vy (m/s)'); label10.move(20, 210)
+textbox5 = QLineEdit(w); textbox5.move(100, 200)
+textbox5.resize(120, 40); textbox5.setText('1e7')
+label11 = QLabel(w); label11.setText('Vz (m/s)'); label11.move(20, 255)
+textbox6 = QLineEdit(w); textbox6.move(100, 245)
+textbox6.resize(120, 40); textbox6.setText('1e7')
+label12 = QLabel(w); label12.setText('M (kg)'); label12.move(20, 300)
+textbox7 = QLineEdit(w); textbox7.move(100, 290)
+textbox7.resize(120, 40); textbox7.setText('1e27')
+label13 = QLabel(w); label13.setText('Name'); label13.move(20, 345)
+textbox8 = QLineEdit(w); textbox8.move(100, 335)
+textbox8.resize(120, 40); textbox8.setText('Particle 1')
 
 # Textboxes for entering parameters for random simulation
-textbox9 = QLineEdit(w)
-textbox9.move(450, 260)
-textbox9.resize(160, 30)
-textbox9.setText('Number of Particles')
-textbox10 = QLineEdit(w)
-textbox10.move(450, 300)
-textbox10.resize(160, 30)
-textbox10.setText('Initial Radius')
-textbox11 = QLineEdit(w)
-textbox11.move(450, 340)
-textbox11.resize(160, 30)
-textbox11.setText('Initial Max Velocity')
-textbox12 = QLineEdit(w)
-textbox12.move(450, 380)
-textbox12.resize(160, 30)
-textbox12.setText('Initial Max Mass')
+label14 = QLabel(w); label14.setText('Number'); label14.move(450, 265)
+textbox9 = QLineEdit(w); textbox9.move(530, 260)
+textbox9.resize(80, 30); textbox9.setText('12')
+label15 = QLabel(w); label15.setText('Range (m)'); label15.move(450, 305)
+textbox10 = QLineEdit(w); textbox10.move(530, 300)
+textbox10.resize(80, 30); textbox10.setText('1e11')
+label16 = QLabel(w); label16.setText('Vmax (m/s)'); label16.move(450, 345)
+textbox11 = QLineEdit(w); textbox11.move(530, 340)
+textbox11.resize(80, 30); textbox11.setText('1e3')
+label17 = QLabel(w); label17.setText('Mmax (kg)'); label17.move(450, 385)
+textbox12 = QLineEdit(w); textbox12.move(530, 380)
+textbox12.resize(80, 30); textbox12.setText('1e27')
 
 # Entering number of steps per day
-textbox13 = QLineEdit(w); textbox13.move(250, 20)
-textbox13.resize(150, 30)
-textbox13.setText('Number of steps per day')
+label4 = QLabel(w); label4.setText('Sample rate'); label4.move(250, 25)
+textbox13 = QLineEdit(w); textbox13.move(360, 20)
+textbox13.resize(50, 30); textbox13.setText('1')
 
 # Entering number of years
-textbox14 = QLineEdit(w)
-textbox14.move(250, 60)
-textbox14.resize(150, 30)
-textbox14.setText('Number of years')
+label5 = QLabel(w); label5.setText('Duration (years)'); label5.move(250, 65)
+textbox14 = QLineEdit(w); textbox14.move(360, 60)
+textbox14.resize(50, 30); textbox14.setText('10')
 
 # Drop-down list for selecting solar system objects to fill textboxes 1-8
-label1 = QLabel(w)
-label1.setText('Solar System')
-label1.move(250, 105)
-combobox1 = QComboBox(w)
-combobox1.addItem('Sun')
-combobox1.addItem('Mercury')
-combobox1.addItem('Venus')
-combobox1.addItem('Earth')
-combobox1.addItem('Mars')
-combobox1.addItem('Jupiter')
-combobox1.addItem('Saturn')
-combobox1.addItem('Uranus')
-combobox1.addItem('Neptune')
-combobox1.addItem('Pluto')
-combobox1.addItem('Halley')
-combobox1.addItem('Hale-Bopp')
+label1 = QLabel(w); label1.setText('Solar System'); label1.move(250, 105)
+combobox1 = QComboBox(w); combobox1.move(250, 125)
+combobox1.addItem('Sun'); combobox1.addItem('Mercury')
+combobox1.addItem('Venus'); combobox1.addItem('Earth')
+combobox1.addItem('Mars'); combobox1.addItem('Jupiter')
+combobox1.addItem('Saturn'); combobox1.addItem('Uranus')
+combobox1.addItem('Neptune'); combobox1.addItem('Pluto')
+combobox1.addItem('Halley'); combobox1.addItem('Hale-Bopp')
 combobox1.addItem('Random object')
-combobox1.move(250, 125)
 def on_activated1(text):
     text_str = str(text)
     if text_str != 'Random object':
-        textbox1.setText(str(solar_system[text_str][1]))
-        textbox2.setText(str(solar_system[text_str][2]))
-        textbox3.setText(str(solar_system[text_str][3]))
-        textbox4.setText(str(solar_system[text_str][4]))
-        textbox5.setText(str(solar_system[text_str][5]))
-        textbox6.setText(str(solar_system[text_str][6]))
-        textbox7.setText(str(solar_system[text_str][0]))
+        if text_str != 'Sun':
+            e = orbital_elements[text_str][0]
+            a = orbital_elements[text_str][1]
+            i = orbital_elements[text_str][2]
+            Om = orbital_elements[text_str][3]
+            wb = orbital_elements[text_str][4]
+            L = orbital_elements[text_str][5]
+            m = orbital_elements[text_str][6]
+            x,y,z,vx,vy,vz = kepler2cartesian(e,a,i,Om,wb,L,m)
+        else:
+            x = y = z = vx = vy = vz = 0
+            m = 1.989e30
+        textbox1.setText(str(x))
+        textbox2.setText(str(y))
+        textbox3.setText(str(z))
+        textbox4.setText(str(vx))
+        textbox5.setText(str(vy))
+        textbox6.setText(str(vz))
+        textbox7.setText(str(m))
         textbox8.setText(text)
     else:
         data = randomize(1e11, 1e27, 1e3)
@@ -467,12 +565,11 @@ def on_activated1(text):
 label2 = QLabel(w)
 label2.setText('Test Particles')
 label2.move(250, 165)
-combobox2 = QComboBox(w)
+combobox2 = QComboBox(w); combobox2.move(250, 185)
 combobox2.addItem('Test Particle 1')
 combobox2.addItem('Test Particle 2')
 combobox2.addItem('Test Particle 3')
 combobox2.addItem('Test Particle 4')
-combobox2.move(250, 185)
 def on_activated2(text):
     text_str = str(text)
     textbox1.setText(str(test_particles[text_str][1]))
@@ -486,7 +583,7 @@ def on_activated2(text):
 
 # Table of all particles created for the simulation
 label3 = QLabel(w)
-label3.setText('List of Particles')
+label3.setText('List of Objects')
 label3.move(485, 25)
 table = QTableWidget(w)
 table.resize(160, 200)
@@ -526,7 +623,7 @@ def on_click_button1():
 # Button for starting the simulation
 button2 = QPushButton('Start', w)
 button2.setToolTip('Start simulation')
-button2.resize(button2.sizeHint()); button2.move(250, 400)
+button2.resize(button2.sizeHint()); button2.move(250, 420)
 def on_click_button2():
     try:
         sample_rate = int(textbox13.text())
@@ -541,15 +638,18 @@ def on_click_button2():
         print("Error: no objects entered.")
         return 1
     objects, old_objects = simulate(objects, num_steps, sample_rate)
+    plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
-        animate(objects, num_steps, checkbox1.isChecked(), checkbox4.isChecked(), checkbox5.isChecked())
+        animate(objects, num_steps, sample_rate, checkbox1.isChecked(), 
+                checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
     else:
-        plot(objects, old_objects, checkbox1.isChecked(), checkbox2.isChecked())
+        plot(objects, old_objects, num_steps, sample_rate, 
+             checkbox1.isChecked(), checkbox2.isChecked(), plot_size)
 
 # Button for running simulation with all random particles
-button3 = QPushButton('Random', w)
+button3 = QPushButton('Start Random', w)
 button3.setToolTip('Start simulation with all random particles')
-button3.resize(button3.sizeHint()); button3.move(480, 420)
+button3.resize(button3.sizeHint()); button3.move(470, 420)
 def on_click_button3():
     try:
         N = int(textbox9.text())
@@ -572,32 +672,35 @@ def on_click_button3():
     num_steps = int(365.25*sample_rate*num_years)
     objects = gen_random(N, r0, mmax, vmax)
     objects, old_objects = simulate(objects, num_steps, sample_rate)
+    plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
-        animate(objects, num_steps, checkbox1.isChecked(), checkbox4.isChecked(), checkbox5.isChecked())
+        animate(objects, num_steps, sample_rate, checkbox1.isChecked(), 
+                checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
     else:
-        plot(objects, old_objects, checkbox1.isChecked(), checkbox2.isChecked())
+        plot(objects, old_objects, num_steps, sample_rate, 
+             checkbox1.isChecked(), checkbox2.isChecked(), plot_size)
 
 # Button for clearing old list of objects
 button4 = QPushButton('Reset', w)
 button4.setToolTip('Clear old list of objects')
-button4.resize(button4.sizeHint()); button4.move(250, 430)
+button4.resize(button4.sizeHint()); button4.move(320, 420)
 def on_click_button4():
     global objects
     objects = []
-    textbox1.setText('Position X')
-    textbox2.setText('Position Y')
-    textbox3.setText('Position Z')
-    textbox4.setText('Velocity X')
-    textbox5.setText('Velocity Y')
-    textbox6.setText('Velocity Z')
-    textbox7.setText('Mass')
-    textbox8.setText('Name')
-    textbox9.setText('Number of particles')
-    textbox10.setText('Initial radius')
-    textbox11.setText('Initial max velocity')
-    textbox12.setText('Initial max mass')
-    textbox13.setText('Steps per day')
-    textbox14.setText('Number of years')
+    textbox1.setText('0')
+    textbox2.setText('0')
+    textbox3.setText('0')
+    textbox4.setText('1e7')
+    textbox5.setText('1e7')
+    textbox6.setText('1e7')
+    textbox7.setText('1e27')
+    textbox8.setText('Particle 1')
+    textbox9.setText('12')
+    textbox10.setText('1e11')
+    textbox11.setText('1e3')
+    textbox12.setText('1e27')
+    textbox13.setText('1')
+    textbox14.setText('10')
     table.setColumnCount(0)
     table.setRowCount(0)
     plt.close()
@@ -606,7 +709,9 @@ button5 = QPushButton('Quick Add', w)
 button5.setToolTip('Add all solar system objects')
 button5.resize(button5.sizeHint()); button5.move(250, 250)
 def on_click_button5():
-    for i in solar_system.keys():
+    on_activated1('Sun')
+    on_click_button1()
+    for i in orbital_elements.keys():
         on_activated1(i)
         on_click_button1()
 
