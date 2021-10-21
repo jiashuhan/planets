@@ -6,7 +6,6 @@ Simple solar system simulation, with basic graphic user interface
 import sys, numpy as np, matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import mpl_toolkits.mplot3d.axes3d as p3
-from mpl_toolkits.mplot3d import proj3d
 
 class particle(object):
     """
@@ -28,11 +27,14 @@ class particle(object):
     nm: str
         Name of object
 
+    n: float, optional
+        (Negative) exponent of force law, i.e. F ~ 1/r^n
+
     Note
     ----
     Runs much faster with Python lists than numpy.ndarray
     """
-    def __init__(self, mass, x, y, z, vx, vy, vz, nm):
+    def __init__(self, mass, x, y, z, vx, vy, vz, nm, n=2):
         self.mass = mass
         self.pos = [x, y, z] # current position 
         self.vel = [vx, vy, vz] # current velocity
@@ -43,6 +45,7 @@ class particle(object):
         self.merged = False # merge status
         self.origin1 = None # name of progenitor 1
         self.origin2 = None # name of progenitor 2
+        self.n = n # force ~ 1/r^n
 
     # check if mergeable with another object
     # objects are mergeable if they share no common origin
@@ -87,7 +90,7 @@ class particle(object):
         dy = other.pos[1] - self.pos[1]
         dz = other.pos[2] - self.pos[2]
         r = (dx**2 + dy**2 + dz**2)**(1/2)
-        force = 6.67e-11 * self.mass * other.mass / r**2
+        force = 6.67e-11 * self.mass * other.mass / r**self.n
         force_x = force * dx / r
         force_y = force * dy / r
         force_z = force * dz / r
@@ -156,7 +159,7 @@ def randomize(r0, mmax, vmax):
     vel = np.random.uniform(-1, 1, size=3)*vmax
     return mass, x, y, z, vel[0], vel[1], vel[2]
 
-def gen_random(N, r0, mmax, vmax):
+def gen_random(N, r0, mmax, vmax, n=2):
     """
     Generates a list of N random objects.
 
@@ -175,6 +178,9 @@ def gen_random(N, r0, mmax, vmax):
     vmax: float
         Maximum speed [m/s] in each direction.
 
+    n: float, optional
+        (Negative) exponent of force law, i.e. F ~ 1/r^n
+
     Returns
     -------
     objects: list
@@ -183,7 +189,7 @@ def gen_random(N, r0, mmax, vmax):
     objects = []
     for i in range(N):
         mass, x, y, z, vx, vy, vz = randomize(r0, mmax, vmax)
-        random_obj = particle(mass, x, y, z, vx, vy, vz, str(i))
+        random_obj = particle(mass, x, y, z, vx, vy, vz, str(i), n)
         objects.append(random_obj)
     return objects
 
@@ -248,7 +254,7 @@ def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
     return objects, old_objects
 
 # Animate the orbits; doesn't work with merge
-def animate(objects, num_steps, sample_rate, set_range, 
+def animate(objects, num_steps, sample_rate, epoch, set_range,
             hide_trace=False, save_file=False, radius=40):
     fig = plt.figure()
     ax = p3.Axes3D(fig, auto_add_to_figure=False)
@@ -273,10 +279,10 @@ def animate(objects, num_steps, sample_rate, set_range,
                       fontsize=14, transform=ax.transAxes)
     if not hide_trace:
         anim = animation.FuncAnimation(fig, update_paths, num_steps,
-                fargs=(positions, paths, title, sample_rate), interval=1, blit=False)
+                fargs=(positions, paths, title, sample_rate, epoch), interval=1, blit=False)
     else:
-        anim = animation.FuncAnimation(fig, no_trace_update,
-                fargs=(positions, points, title, sample_rate), interval=1, blit=False)
+        anim = animation.FuncAnimation(fig, no_trace_update, num_steps,
+                fargs=(positions, points, title, sample_rate, epoch), interval=1, blit=False)
     if save_file:
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=12, metadata=dict(artist='Me'), bitrate=1800)
@@ -285,19 +291,27 @@ def animate(objects, num_steps, sample_rate, set_range,
     return anim
 
 # Update paths for animation
-def update_paths(num_steps, positions, paths, title, sample_rate):
+def update_paths(num_steps, positions, paths, title, sample_rate, epoch):
     for path, position in zip(paths, positions): # for each object
+        # Use these to keep temporary trails
+        #if num_steps >= 5:
+        #    path.set_data(position[0:2, num_steps-4:num_steps])
+        #    path.set_3d_properties(position[2, num_steps-4:num_steps])
+        #    title.set_text('JD %.1f'%(epoch+num_steps/sample_rate))
+        #else:
         path.set_data(position[0:2, :num_steps])
         path.set_3d_properties(position[2, :num_steps])
-        title.set_text('JD %.1f'%(2451545.0+num_steps/sample_rate))
+        title.set_text('JD %.1f'%(epoch+num_steps/sample_rate))
     return paths, title
 
-def no_trace_update(step, positions, points, title, sample_rate):
+# Although in FuncAnimation the variable 'num_steps' is provided, only the
+# individual iterations of range(num_steps) are fed into 'step'
+def no_trace_update(step, positions, points, title, sample_rate, epoch):
     for position, point in zip(positions, points):
         num_steps = position.shape[1] # needs to be looped back manually
         point.set_data(position[0,step%num_steps], position[1,step%num_steps])
         point.set_3d_properties(position[2,step%num_steps])
-    title.set_text('JD %.1f'%(2451545.0+step%num_steps/sample_rate))
+    title.set_text('JD %.1f'%(epoch+step%num_steps/sample_rate))
     # Use these if you want to plot the points together
     #positions = np.array(positions)
     #points.set_data(positions[:,0,step], positions[:,1,step])
@@ -305,7 +319,7 @@ def no_trace_update(step, positions, points, title, sample_rate):
     return points
 
 # Plot orbits
-def plot(objects, old_objects, num_steps, sample_rate, set_range, legend, radius=40):
+def plot(objects, old_objects, num_steps, sample_rate, set_range, legend, epoch, radius=40):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     for obj in objects:
@@ -320,14 +334,14 @@ def plot(objects, old_objects, num_steps, sample_rate, set_range, legend, radius
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title('JD %.1f'%(2451545.0+num_steps/sample_rate))
+    ax.set_title('JD %.1f'%(epoch+num_steps/sample_rate))
     if legend:
         plt.legend()
     plt.savefig('results/orbits.pdf', bbox_inches='tight')
     plt.show()
     table_items(objects)
 
-def kepler2cartesian(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
+def kep2cart(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
     """
     Convert Keplerian orbital elements to state vectors in 
     heliocentric cartesian coordinates in the J2000 ecliptic 
@@ -382,7 +396,7 @@ def kepler2cartesian(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
     Ω = Ω*np.pi/180
     M = L - ϖ # mean anomaly [deg]
     E = ecc_anomaly(e, M)*np.pi/180 # eccentric anomaly
-    # heliocentric coordinates in orbital plane, z0=0
+    # heliocentric coordinates in orbital plane, z1=0
     x0 = a*(np.cos(E)-e)
     y0 = a*(1-e**2)**(1/2)*np.sin(E)
     # ecliptic coordinates, in au
@@ -392,13 +406,13 @@ def kepler2cartesian(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
     # find velocity in m/s
     au = 149597870700
     mu = 6.6743e-11*(m1+m2)
-    nu = 2*np.arctan(np.sqrt((1+e)/(1-e)) * np.tan(E/2))
-    r = a*au*(1-e*np.cos(E))
-    h = np.sqrt(mu*a*au*(1-e**2))
-    p = a*au*(1-e**2)
-    vx = (x*au*h*e/(r*p))*np.sin(nu)-(h/r)*(np.cos(Ω)*np.sin(ω+nu)+np.sin(Ω)*np.cos(ω+nu)*np.cos(i))
-    vy = (y*au*h*e/(r*p))*np.sin(nu)-(h/r)*(np.sin(Ω)*np.sin(ω+nu)-np.cos(Ω)*np.cos(ω+nu)*np.cos(i))
-    vz = (z*au*h*e/(r*p))*np.sin(nu)+(h/r)*(np.cos(ω+nu)*np.sin(i))
+    nu = 2*np.arctan(np.sqrt((1+e)/(1-e))*np.tan(E/2)) # true anomaly
+    v = np.sqrt(mu/a/au*(1+e*np.cos(E))/(1-e*np.cos(E))) # orbital speed
+    theta = np.arcsin(np.sqrt((1-e**2)/(1-e**2*np.cos(E)**2))) # angle between r and v
+    vx0, vy0 = v*np.cos(nu+theta), v*np.sin(nu+theta) # velocity in orbital plane
+    vx = (np.cos(ω)*np.cos(Ω)-np.sin(ω)*np.sin(Ω)*np.cos(i))*vx0+(-np.sin(ω)*np.cos(Ω)-np.cos(ω)*np.sin(Ω)*np.cos(i))*vy0
+    vy = (np.cos(ω)*np.sin(Ω)+np.sin(ω)*np.cos(Ω)*np.cos(i))*vx0+(-np.sin(ω)*np.sin(Ω)+np.cos(ω)*np.cos(Ω)*np.cos(i))*vy0
+    vz = np.sin(ω)*np.sin(i)*vx0+np.cos(ω)*np.sin(i)*vy0
     return x*au, y*au, z*au, vx, vy, vz
 
 # Solve for eccentric anomaly [deg] given e [rad] and M [deg]
@@ -412,8 +426,32 @@ def ecc_anomaly(e, M, tolerance=0.01):
         E += dE
     return E # [deg]
 
+# Converts state vectors (r in au and v in m/s) into orbital elements
+def cart2kep(x, y, z, vx, vy, vz, m1, m2=1.989e30):
+    au = 149597870700
+    mu = 6.6743e-11*(m1+m2)
+    x *= au; y *= au; z *= au
+    r = (x**2+y**2+z**2)**(1/2)
+    v = (vx**2+vy**2+vz**2)**(1/2)
+    eps = v**2/2-mu/r # specific orbital energy
+    a = -mu/2/eps
+    theta = np.arccos((x*vx+y*vy+z*vz)/r/v) # angle between r and v
+    h = r*v*np.sin(theta) # specific angular momentum
+    hx, hy, hz = y*vz-z*vy, z*vx-x*vz, x*vy-y*vx
+    e = (1-h**2/mu/a)**(1/2)
+    E = np.arccos((1-r/a)/e) # eccentric anomaly
+    M = E - e*np.cos(E) # mean anomaly
+    i = np.arccos(hz/h)
+    Om = (np.arctan2(hx, -hy)+2*np.pi)%(2*np.pi)
+    nu = 2*np.arctan(np.sqrt((1+e)/(1-e))*np.tan(E/2)) # true anomaly
+    w = np.arctan2(z/np.sin(i), x*np.cos(Om)+y*np.sin(Om))-nu
+    wb = (w+Om+2*np.pi)%(2*np.pi)
+    L = (M+wb+2*np.pi)%(2*np.pi)
+    return e, a/au, i*180/np.pi, Om*180/np.pi, wb*180/np.pi, L*180/np.pi
+
 # Keplerian elements (e, a, i, Ω, ϖ, L) and masses of solar system objects.
 # J2000, http://www.met.rdg.ac.uk/~ross/Astronomy/Planets.html
+# recreated the Aug 19, 2021 (JD 2459446) Venus-Mars-Mercury conjuction.
 # Halley: Epoch 2449400.5 (1994-Feb-17.0), https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=1P
 # Hale-Bopp: Epoch 2454724.5 (2008-Sep-15.0)
 orbital_elements = {'Mercury':[0.20563069, 0.38709893, 7.00487, 48.33167, 77.45645, 252.25084, 3.301e23],
@@ -459,7 +497,7 @@ checkbox2 = QCheckBox(w); checkbox2.move(250, 310)
 checkbox2.setChecked(False); checkbox2.setText('Show Legend')
 # Checkbox for animation
 checkbox3 = QCheckBox(w); checkbox3.move(250, 330)
-checkbox3.setChecked(False); checkbox3.setText('Animated')
+checkbox3.setChecked(True); checkbox3.setText('Animated')
 # Checkbox for showing no trace of orbit
 checkbox4 = QCheckBox(w); checkbox4.move(250, 350)
 checkbox4.setChecked(False); checkbox4.setText('Hide orbits')
@@ -507,6 +545,11 @@ label17 = QLabel(w); label17.setText('Mmax (kg)'); label17.move(450, 385)
 textbox12 = QLineEdit(w); textbox12.move(530, 380)
 textbox12.resize(80, 30); textbox12.setText('1e27')
 
+# Entering epoch; default: J2000
+label18 = QLabel(w); label18.setText('Epoch: JD'); label18.move(20, 420)
+textbox16 = QLineEdit(w); textbox16.move(100, 410)
+textbox16.resize(120, 40); textbox16.setText('2451545.0')
+
 # Entering number of steps per day
 label4 = QLabel(w); label4.setText('Sample rate'); label4.move(250, 25)
 textbox13 = QLineEdit(w); textbox13.move(360, 20)
@@ -517,9 +560,14 @@ label5 = QLabel(w); label5.setText('Duration (years)'); label5.move(250, 65)
 textbox14 = QLineEdit(w); textbox14.move(360, 60)
 textbox14.resize(50, 30); textbox14.setText('10')
 
+# Entering force law
+label2 = QLabel(w); label2.setText('Force index'); label2.move(250, 105)
+textbox15 = QLineEdit(w); textbox15.move(360, 100)
+textbox15.resize(50, 30); textbox15.setText('2')
+
 # Drop-down list for selecting solar system objects to fill textboxes 1-8
-label1 = QLabel(w); label1.setText('Solar System'); label1.move(250, 105)
-combobox1 = QComboBox(w); combobox1.move(250, 125)
+label1 = QLabel(w); label1.setText('Presets'); label1.move(250, 140)
+combobox1 = QComboBox(w); combobox1.move(250, 160)
 combobox1.addItem('Sun'); combobox1.addItem('Mercury')
 combobox1.addItem('Venus'); combobox1.addItem('Earth')
 combobox1.addItem('Mars'); combobox1.addItem('Jupiter')
@@ -538,7 +586,7 @@ def on_activated1(text):
             wb = orbital_elements[text_str][4]
             L = orbital_elements[text_str][5]
             m = orbital_elements[text_str][6]
-            x,y,z,vx,vy,vz = kepler2cartesian(e,a,i,Om,wb,L,m)
+            x,y,z,vx,vy,vz = kep2cart(e,a,i,Om,wb,L,m)
         else:
             x = y = z = vx = vy = vz = 0
             m = 1.989e30
@@ -562,9 +610,6 @@ def on_activated1(text):
         textbox8.setText(text)
 
 # Drop-down list for selecting test particles
-label2 = QLabel(w)
-label2.setText('Test Particles')
-label2.move(250, 165)
 combobox2 = QComboBox(w); combobox2.move(250, 185)
 combobox2.addItem('Test Particle 1')
 combobox2.addItem('Test Particle 2')
@@ -613,10 +658,11 @@ def on_click_button1():
         vz = float(textbox6.text())
         mass = float(textbox7.text())
         name = str(textbox8.text())
+        n = float(textbox15.text())
     except ValueError:
         print("Error: invalid parameters.")
         return 1
-    new_obj = particle(mass, x, y, z, vx, vy, vz, name)
+    new_obj = particle(mass, x, y, z, vx, vy, vz, name, n)
     objects.append(new_obj)
     table_items(objects) # Updates table
 
@@ -628,9 +674,11 @@ def on_click_button2():
     try:
         sample_rate = int(textbox13.text())
         num_years = int(textbox14.text())
+        epoch = float(textbox16.text())
     except ValueError: # If these not entered, set default values
         sample_rate = 1
         num_years = 50
+        epoch = 2451545.0
         print("Warning: number of steps not entered; set to default values.")
     num_steps = int(365.25*sample_rate*num_years)
     global objects
@@ -640,11 +688,11 @@ def on_click_button2():
     objects, old_objects = simulate(objects, num_steps, sample_rate)
     plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
-        animate(objects, num_steps, sample_rate, checkbox1.isChecked(), 
+        animate(objects, num_steps, sample_rate, epoch, checkbox1.isChecked(), 
                 checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
     else:
         plot(objects, old_objects, num_steps, sample_rate, 
-             checkbox1.isChecked(), checkbox2.isChecked(), plot_size)
+             checkbox1.isChecked(), checkbox2.isChecked(), epoch, plot_size)
 
 # Button for running simulation with all random particles
 button3 = QPushButton('Start Random', w)
@@ -656,11 +704,13 @@ def on_click_button3():
         r0 = float(textbox10.text())
         vmax = float(textbox11.text())
         mmax = float(textbox12.text())
+        n = float(textbox15.text())
     except ValueError:
         N = 12
         r0 = 6e12
         vmax = 5e4
         mmax = 5e30
+        n = 2
         print("Warning: initial parameters not entered; set to default values.")
     try:
         sample_rate = int(textbox13.text())
@@ -669,16 +719,18 @@ def on_click_button3():
         sample_rate = 1
         num_years = 50
         print("Warning: number of steps not entered; set to default values.")
+    epoch = 0 # No need to use J2000 for random objects
     num_steps = int(365.25*sample_rate*num_years)
     objects = gen_random(N, r0, mmax, vmax)
+    table_items(objects)
     objects, old_objects = simulate(objects, num_steps, sample_rate)
     plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
-        animate(objects, num_steps, sample_rate, checkbox1.isChecked(), 
+        animate(objects, num_steps, sample_rate, epoch, checkbox1.isChecked(), 
                 checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
     else:
         plot(objects, old_objects, num_steps, sample_rate, 
-             checkbox1.isChecked(), checkbox2.isChecked(), plot_size)
+             checkbox1.isChecked(), checkbox2.isChecked(), epoch, plot_size)
 
 # Button for clearing old list of objects
 button4 = QPushButton('Reset', w)
@@ -701,6 +753,8 @@ def on_click_button4():
     textbox12.setText('1e27')
     textbox13.setText('1')
     textbox14.setText('10')
+    textbox15.setText('2')
+    textbox16.setText('2451545.0')
     table.setColumnCount(0)
     table.setRowCount(0)
     plt.close()
