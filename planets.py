@@ -309,8 +309,12 @@ def update_paths(num_steps, positions, paths, title, sample_rate, epoch):
 def no_trace_update(step, positions, points, title, sample_rate, epoch):
     for position, point in zip(positions, points):
         num_steps = position.shape[1] # needs to be looped back manually
-        point.set_data(position[0,step%num_steps], position[1,step%num_steps])
-        point.set_3d_properties(position[2,step%num_steps])
+        # use the following two lines for matplotlib 3.4.3
+        #point.set_data(position[0,step%num_steps], position[1,step%num_steps])
+        #point.set_3d_properties(position[2,step%num_steps])
+        # use the following two lines for matplotlib 3.5+
+        point.set_data([position[0,step%num_steps]], [position[1,step%num_steps]])
+        point.set_3d_properties([position[2,step%num_steps]])
     title.set_text('JD %.1f'%(epoch+step%num_steps/sample_rate))
     # Use these if you want to plot the points together
     #positions = np.array(positions)
