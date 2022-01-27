@@ -309,12 +309,9 @@ def update_paths(num_steps, positions, paths, title, sample_rate, epoch):
 def no_trace_update(step, positions, points, title, sample_rate, epoch):
     for position, point in zip(positions, points):
         num_steps = position.shape[1] # needs to be looped back manually
-        # use the following two lines for matplotlib 3.4.3
-        #point.set_data(position[0,step%num_steps], position[1,step%num_steps])
-        #point.set_3d_properties(position[2,step%num_steps])
-        # use the following two lines for matplotlib 3.5+
-        point.set_data([position[0,step%num_steps]], [position[1,step%num_steps]])
-        point.set_3d_properties([position[2,step%num_steps]])
+        step1 = step%num_steps
+        point.set_data(position[0,step1:step1+1], position[1,step1:step1+1])
+        point.set_3d_properties(position[2,step1:step1+1])
     title.set_text('JD %.1f'%(epoch+step%num_steps/sample_rate))
     # Use these if you want to plot the points together
     #positions = np.array(positions)
@@ -458,6 +455,7 @@ def cart2kep(x, y, z, vx, vy, vz, m1, m2=1.989e30):
 # recreated the Aug 19, 2021 (JD 2459446) Venus-Mars-Mercury conjuction.
 # Halley: Epoch 2449400.5 (1994-Feb-17.0), https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=1P
 # Hale-Bopp: Epoch 2454724.5 (2008-Sep-15.0)
+# must subtract 2144.5 from the JD number in the simulation for Halley, or add 3179.5 for Hale-Bopp
 orbital_elements = {'Mercury':[0.20563069, 0.38709893, 7.00487, 48.33167, 77.45645, 252.25084, 3.301e23],
                     'Venus':[0.00677323, 0.72333199, 3.39471, 76.68069, 131.53298, 181.97973, 4.867e24],
                     'Earth':[0.01671022, 1.00000011, 0.00005, -11.26064, 102.94719, 100.46435, 5.972e24],
