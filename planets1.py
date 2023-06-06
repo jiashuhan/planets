@@ -2,130 +2,169 @@
 -----------------------------------------------------------------
 Simple solar system simulation, with basic graphic user interface
 -----------------------------------------------------------------
+# This implementation is slower
 """
 import sys, numpy as np, matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import mpl_toolkits.mplot3d.axes3d as p3
 from tqdm.auto import trange
 
-class particle(object):
+class Particles(object):
     """
     Class of objects interating with gravity only
 
     Parameters
     ----------
-    mass: float
-        Mass of object in kg
-
-    x, y, z: float
-        Initial position (in m) of object, measured in the
-        inertial frame of the central body.
-
-    vx, vy, vz: float
-        Initial velocity (in m/s) of object, measured in the
-        inertial frame of the central body.
-
-    nm: str
-        Name of object
-
+    N: int
+        number of object slots to be initialized
     n: float, optional
         (Negative) exponent of force law, i.e. F ~ 1/r^n
-
-    Note
-    ----
-    Runs much faster with Python lists than numpy.ndarray
     """
-    def __init__(self, mass, x, y, z, vx, vy, vz, nm, n=2):
-        self.mass = mass
-        self.pos = [x, y, z] # current position 
-        self.vel = [vx, vy, vz] # current velocity
-        self.path_x = [x] # history of all positions
-        self.path_y = [y]
-        self.path_z = [z]
-        self.nm = nm
-        self.merged = False # merge status
-        self.origin1 = None # name of progenitor 1
-        self.origin2 = None # name of progenitor 2
+    G = 6.6743e-11
+    AU = 149597870700
+
+    def __init__(self, N=10, n=2):
+        self.N = N
+        self.n_obj = 0
+        self.step = 0
+        self.obj = {}
+        self.obj['M'] = np.zeros(N) # masses
+        self.obj['id'] = np.zeros(N,dtype='<U21') # identifiers
+        self.obj['n'] = {} # id to index
+        self.obj['x'] = np.zeros((1,N,3)) # positions; axes: step,obj,coord
+        self.obj['v'] = np.zeros((1,N,3)) # velocities; axes: step,obj,coord
+
         self.n = n # force ~ 1/r^n
 
-    # check if mergeable with another object
-    # objects are mergeable if they share no common origin
-    def mergeable(self, other):
-        return self.origin1 != other.nm and self.origin2 != other.nm
-
-    # Updates position and velocity of object
-    def update(self, force_x, force_y, force_z, dt):
-        self.vel[0] += force_x / self.mass * dt
-        self.vel[1] += force_y / self.mass * dt
-        self.vel[2] += force_z / self.mass * dt
-        # orbits won't close if order swapped
-        self.pos[0] += self.vel[0] * dt
-        self.pos[1] += self.vel[1] * dt
-        self.pos[2] += self.vel[2] * dt
-        self.path_x.append(self.pos[0])
-        self.path_y.append(self.pos[1])
-        self.path_z.append(self.pos[2])
-
-    def distance(self, other):
-        dx = other.pos[0] - self.pos[0]
-        dy = other.pos[1] - self.pos[1]
-        dz = other.pos[2] - self.pos[2]
-        r = (dx**2 + dy**2 + dz**2)**(1/2.)
-        return r
-
-    def gravity(self, other):
+    # add additional object
+    def add(self, mass, x, y, z, vx, vy, vz, nm):
         """
-        Computes force between self and another object.
-
         Parameters
         ----------
-        other: <class '__main__.particle'> object
-            The other object to be considered.
+        mass: float
+            Mass of object in kg
+        x, y, z: float
+            Initial position (in m) of object, measured in the
+            inertial frame of the central body.
+        vx, vy, vz: float
+            Initial velocity (in m/s) of object, measured in the
+            inertial frame of the central body.
+        nm: str
+            Identifier of object
+        """
+        self.obj['n'][nm] = self.n_obj
+
+        if self.n_obj >= self.N: # PUT SNAPSHOTS IN LISTS RATHER THAN VSTACK
+            self.obj['M'] = np.append(self.obj['M'], mass)
+            self.obj['id'] = np.append(self.obj['id'], nm)
+
+            x_ = np.zeros((self.step+1,1,3))
+            v_ = np.zeros((self.step+1,1,3))
+            x_[self.step,0] = [x,y,z]
+            v_[self.step,0] = [vx,vy,vz]
+            self.obj['x'] = np.append(self.obj['x'], x_, axis=1)
+            self.obj['v'] = np.append(self.obj['v'], v_, axis=1)
+
+            self.N += 1
+        else:
+            self.obj['M'][self.n_obj] = mass
+            self.obj['id'][self.n_obj] = nm
+            self.obj['x'][self.step,self.n_obj] = [x,y,z]
+            self.obj['v'][self.step,self.n_obj] = [vx,vy,vz]
+
+        self.n_obj += 1
+
+    # Updates position and velocity of object
+    def update(self, dt):
+        assert self.step+1 == len(self.obj['x'])
+
+        F = self.gravity() # axes: obj,coord
+        M = np.expand_dims(self.obj['M'], axis=-1)
+
+        v = self.obj['v'][self.step] + F / M * dt # axes: obj,coord
+        self.obj['v'] = np.vstack((self.obj['v'], v[np.newaxis,:])) # axes: step,obj,coord
+        # orbits won't close if order swapped
+        x = self.obj['x'][self.step] + v * dt
+        self.obj['x'] = np.vstack((self.obj['x'], x[np.newaxis,:]))
+
+        self.step += 1
+
+    def gravity(self):
+        """
+        Computes force between all objects.
 
         Returns
         -------
-        force: tuple, float
-            Force vector for self, pointing towards other.
+        force: 2d array, float
+            Force acting on each object; axes: obj,coord
         """
-        dx = other.pos[0] - self.pos[0]
-        dy = other.pos[1] - self.pos[1]
-        dz = other.pos[2] - self.pos[2]
-        r = (dx**2 + dy**2 + dz**2)**(1/2)
-        force = 6.67e-11 * self.mass * other.mass / r**self.n
-        force_x = force * dx / r
-        force_y = force * dy / r
-        force_z = force * dz / r
-        return force_x, force_y, force_z
+        M = self.obj['M']
+        X = self.obj['x'][self.step] # current positions; axes: obj,coord
 
-def merge(obj1, obj2):
-    """
-    Merge two objects if they get too close together. 
-    Momentum is conserved.
+        dX = X[:,np.newaxis] - X # axes: obj1,obj2,coord
+        r = np.sqrt(np.sum(dX**2, axis=-1)) # axes: obj1,obj2
+        _ = np.finfo(float).eps # avoid div by 0; self force removed by dX
+        
+        Fvec = self.G * np.sum(M[:,np.newaxis,np.newaxis] * M[:,np.newaxis] * dX / (r[...,np.newaxis]**(self.n+1) + _), axis=0) # axes: obj,coord
 
-    Parameters 
-    ----------
-    obj1, obj2: <class '__main__.particle'> object
-        Input objects to be merged.
+        return Fvec
 
-    Returns
-    -------
-    (obj1, obj2, obj3): tuple, <class '__main__.particle'> object
-        input objects and the new object created from merger.
-    """
-    name = obj1.nm + '+' + obj2.nm
-    x = (obj1.pos[0] + obj2.pos[0]) / 2
-    y = (obj1.pos[1] + obj2.pos[1]) / 2
-    z = (obj1.pos[2] + obj2.pos[2]) / 2
-    mass = obj1.mass + obj2.mass
-    vx = (obj1.mass * obj1.vel[0] + obj2.mass * obj2.vel[0])/mass
-    vy = (obj1.mass * obj1.vel[1] + obj2.mass * obj2.vel[1])/mass
-    vz = (obj1.mass * obj1.vel[2] + obj2.mass * obj2.vel[2])/mass
-    obj3 = particle(mass, x, y, z, vx, vy, vz, name)
-    obj3.origin1 = obj1.nm
-    obj3.origin2 = obj2.nm
-    obj1.merged = True
-    obj2.merged = True
-    return obj1, obj2, obj3
+    def run(self, num_steps, sample_rate):
+        """
+        Runs the simulation and updates the objects. First compute
+        forces acting on all objects, then update the position and
+        velocitiy of each object.
+
+        Parameters
+        ----------
+        num_steps: int
+            Total number of steps in the simulation.
+        sample_rate: float
+            Number of steps per day.
+
+        Returns
+        -------
+        obj: dict
+            Properties of time evolved objects.
+        """
+        self.obj['M'] = self.obj['M'][:self.n_obj]
+        self.obj['id'] = self.obj['id'][:self.n_obj]
+        self.obj['x'] = self.obj['x'][:,:self.n_obj,:]
+        self.obj['v'] = self.obj['v'][:,:self.n_obj,:]
+
+        dt = 86400/sample_rate
+
+        for step in trange(num_steps):
+            self.update(dt)
+
+        return self.obj
+
+    def gen_random(self, N, r0, mmax, vmax, n=2):
+        """
+        Generates a list of N random objects.
+
+        Parameters
+        ----------
+        N: int
+            Number of objects to generate.
+
+        r0: float
+            Radius of the sphere [m] within which the objects
+            are created.
+
+        mmax: float
+            Maximum mass [kg] of the objects.
+
+        vmax: float
+            Maximum speed [m/s] in each direction.
+
+        n: float, optional
+            (Negative) exponent of force law, i.e. F ~ 1/r^n
+        """
+        self.n = n
+        for i in range(N):
+            m, x, y, z, vx, vy, vz = randomize(r0, mmax, vmax)
+            self.add(m, x, y, z, vx, vy, vz, str(i))
 
 def randomize(r0, mmax, vmax):
     """
@@ -157,119 +196,23 @@ def randomize(r0, mmax, vmax):
     x = r * np.sin(theta)*np.cos(phi)
     y = r * np.sin(theta)*np.sin(phi)
     z = r * np.cos(theta)
-    vel = np.random.uniform(-1, 1, size=3)*vmax
-    return mass, x, y, z, vel[0], vel[1], vel[2]
+    v = np.random.uniform(-1, 1, size=3)*vmax
+    return mass, x, y, z, *v
 
-def gen_random(N, r0, mmax, vmax, n=2):
-    """
-    Generates a list of N random objects.
-
-    Parameters
-    ----------
-    N: int
-        Number of objects to generate.
-
-    r0: float
-        Radius of the sphere [m] within which the objects
-        are created.
-
-    mmax: float
-        Maximum mass [kg] of the objects.
-
-    vmax: float
-        Maximum speed [m/s] in each direction.
-
-    n: float, optional
-        (Negative) exponent of force law, i.e. F ~ 1/r^n
-
-    Returns
-    -------
-    objects: list
-        List of randomly generated objects.
-    """
-    objects = []
-    for i in range(N):
-        mass, x, y, z, vx, vy, vz = randomize(r0, mmax, vmax)
-        random_obj = particle(mass, x, y, z, vx, vy, vz, str(i), n)
-        objects.append(random_obj)
-    return objects
-
-def simulate(objects, num_steps, sample_rate, rcrit=3.2e8):
-    """
-    Runs the simulation and updates the objects. First compute
-    forces acting on all objects, then update the position and
-    velocitiy of each object.
-
-    Parameters
-    ----------
-    objects: list
-        List of all objects in the simulation.
-
-    num_steps: int
-        Total number of steps in the simulation.
-
-    sample_rate: float
-        Number of steps per day.
-
-    rcrit: float
-        Optional. Distance threshold for merger [m]
-
-    Returns
-    -------
-    objects: list
-        List of time evolved objects.
-
-    old_objects: list
-        List of merged objects.
-    """
-    old_objects = []
-    for step in trange(num_steps):
-        forces_x = []
-        forces_y = []
-        forces_z = []
-        for obj1 in objects:
-            total_fx = 0
-            total_fy = 0
-            total_fz = 0
-            for obj2 in objects:
-                if obj1 != obj2 and obj2.mergeable(obj1):
-                    # Merging works only when sample_rate > 100
-                    if sample_rate >= 100 and obj1.distance(obj2) < rcrit:
-                        objects.remove(obj1)
-                        objects.remove(obj2)
-                        obj1, obj2, obj3 = merge(obj1, obj2)
-                        old_objects.append(obj1)
-                        old_objects.append(obj2)
-                        objects.append(obj3)
-                    else: # if the two are distinct
-                        force = obj1.gravity(obj2)
-                        total_fx += force[0]
-                        total_fy += force[1]
-                        total_fz += force[2]
-            forces_x.append(total_fx)
-            forces_y.append(total_fy)
-            forces_z.append(total_fz)
-        for i in range(len(forces_x)): # update all objects
-            objects[i].update(forces_x[i], forces_y[i], forces_z[i], 86400/sample_rate)
-            
-    return objects, old_objects
-
-# Animate the orbits; doesn't work with merge
-def animate(objects, num_steps, sample_rate, epoch, set_range,
+# Animate the orbits
+def animate(pos, num_steps, sample_rate, epoch, set_range,
             hide_trace=False, save_file=False, radius=40):
     fig = plt.figure()
     ax = p3.Axes3D(fig, auto_add_to_figure=False)
     fig.add_axes(ax)
-    positions = [] # list of paths; the indices are: [object][direction (xyz),step]
-    for obj in objects:
-        positions.append(np.array([obj.path_x, obj.path_y, obj.path_z]))
+    positions = np.moveaxis(pos,0,-1) # list of paths; the indices are: [object,direction (xyz),step]
     if not hide_trace:
         paths = [ax.plot(i[0,0:1], i[1,0:1], i[2,0:1])[0] for i in positions]
     else:
         points = [ax.plot([], [], [], '.')[0] for i in positions]
         #points, = ax.plot([], [], [], '.') # plot the points together
     if set_range:
-        r = 149597870700*radius
+        r = Particles.AU*radius
         ax.set_xlim3d([-r,r])
         ax.set_ylim3d([-r,r])
         ax.set_zlim3d([-r,r])
@@ -321,15 +264,13 @@ def no_trace_update(step, positions, points, title, sample_rate, epoch):
     return points
 
 # Plot orbits
-def plot(objects, old_objects, num_steps, sample_rate, set_range, legend, epoch, radius=40):
+def plot(obj, num_steps, sample_rate, set_range, legend, epoch, radius=40):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
-    for obj in objects:
-        ax.plot(obj.path_x, obj.path_y, obj.path_z, label=obj.nm)
-    for obj in old_objects:
-        ax.plot(obj.path_x, obj.path_y, obj.path_z, label=obj.nm)
+    for i in range(obj['x'].shape[1]):
+        ax.plot(obj['x'][:,i,0], obj['x'][:,i,1], obj['x'][:,i,2], label=obj['id'])
     if set_range: # Set range for plot
-        r = 149597870700*radius
+        r = Particles.AU*radius
         ax.set_xlim(-r, r)
         ax.set_ylim(-r, r)
         ax.set_zlim(-r, r)
@@ -341,7 +282,7 @@ def plot(objects, old_objects, num_steps, sample_rate, set_range, legend, epoch,
         plt.legend()
     plt.savefig('results/orbits.pdf', bbox_inches='tight')
     plt.show()
-    table_items(objects)
+    table_items(obj)
 
 def kep2cart(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
     """
@@ -482,7 +423,7 @@ test_particles = {'Test Particle 1':[2e30, 1e12, 0, 0, 0, 1e4, 0],  # 1, 2 - for
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-objects = []
+objects = Particles()
 
 # Create application and window
 app = QApplication(sys.argv)
@@ -638,12 +579,12 @@ table.resize(160, 200)
 table.move(450, 50)
 table_item = QTableWidgetItem()
 def table_items(objects): # Update table of objects
-    num_items = len(objects)
+    num_items = objects['x'].shape[1]
     table.setColumnCount(1)
     table.setRowCount(num_items)
     count = 0
-    for obj in objects:
-        Name = obj.nm
+    for i in range(num_items):
+        Name = objects['id'][i]
         table.setItem(count, 0, QTableWidgetItem(Name))
         count += 1
 
@@ -665,9 +606,9 @@ def on_click_button1():
     except ValueError:
         print("Error: invalid parameters.")
         return 1
-    new_obj = particle(mass, x, y, z, vx, vy, vz, name, n)
-    objects.append(new_obj)
-    table_items(objects) # Updates table
+    objects.n = n
+    objects.add(mass, x, y, z, vx, vy, vz, name)
+    table_items(objects.obj) # Updates table
 
 # Button for starting the simulation
 button2 = QPushButton('Start', w)
@@ -684,17 +625,17 @@ def on_click_button2():
         epoch = 2451545.0
         print("Warning: number of steps not entered; set to default values.")
     num_steps = int(365.25*sample_rate*num_years)
-    global objects
-    if len(objects) == 0:
+
+    if len(objects.obj['M']) == 0:
         print("Error: no objects entered.")
         return 1
-    objects, old_objects = simulate(objects, num_steps, sample_rate)
+    obj = objects.run(num_steps, sample_rate)
     plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
-        animate(objects, num_steps, sample_rate, epoch, checkbox1.isChecked(), 
+        animate(obj['x'], num_steps, sample_rate, epoch, checkbox1.isChecked(), 
                 checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
     else:
-        plot(objects, old_objects, num_steps, sample_rate, 
+        plot(obj, num_steps, sample_rate, 
              checkbox1.isChecked(), checkbox2.isChecked(), epoch, plot_size)
 
 # Button for running simulation with all random particles
@@ -724,15 +665,15 @@ def on_click_button3():
         print("Warning: number of steps not entered; set to default values.")
     epoch = 0 # No need to use J2000 for random objects
     num_steps = int(365.25*sample_rate*num_years)
-    objects = gen_random(N, r0, mmax, vmax)
-    table_items(objects)
-    objects, old_objects = simulate(objects, num_steps, sample_rate)
+    objects.gen_random(N, r0, mmax, vmax, n=n)
+    table_items(objects.obj)
+    obj = objects.run(num_steps, sample_rate)
     plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
-        animate(objects, num_steps, sample_rate, epoch, checkbox1.isChecked(), 
+        animate(obj['x'], num_steps, sample_rate, epoch, checkbox1.isChecked(), 
                 checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
     else:
-        plot(objects, old_objects, num_steps, sample_rate, 
+        plot(obj, num_steps, sample_rate, 
              checkbox1.isChecked(), checkbox2.isChecked(), epoch, plot_size)
 
 # Button for clearing old list of objects
@@ -741,7 +682,7 @@ button4.setToolTip('Clear old list of objects')
 button4.resize(button4.sizeHint()); button4.move(320, 420)
 def on_click_button4():
     global objects
-    objects = []
+    objects = Particles()
     textbox1.setText('0')
     textbox2.setText('0')
     textbox3.setText('0')
