@@ -1,8 +1,7 @@
 """
------------------------------------------------------------------
-Simple solar system simulation, with basic graphic user interface
------------------------------------------------------------------
-# This implementation is slower
+------------------------------------------
+Simple solar system simulation, optimized
+------------------------------------------
 """
 import sys, numpy as np, matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -31,8 +30,8 @@ class Particles(object):
         self.obj['M'] = np.zeros(N) # masses
         self.obj['id'] = np.zeros(N,dtype='<U21') # identifiers
         self.obj['n'] = {} # id to index
-        self.obj['x'] = np.zeros((1,N,3)) # positions; axes: step,obj,coord
-        self.obj['v'] = np.zeros((1,N,3)) # velocities; axes: step,obj,coord
+        self.obj['xi'] = np.zeros((N,3)) # initial positions; axes: obj,coord
+        self.obj['vi'] = np.zeros((N,3)) # initial velocities; axes: obj,coord
 
         self.n = n # force ~ 1/r^n
 
@@ -54,44 +53,42 @@ class Particles(object):
         """
         self.obj['n'][nm] = self.n_obj
 
-        if self.n_obj >= self.N: # PUT SNAPSHOTS IN LISTS RATHER THAN VSTACK
+        if self.n_obj >= self.N:
             self.obj['M'] = np.append(self.obj['M'], mass)
             self.obj['id'] = np.append(self.obj['id'], nm)
 
-            x_ = np.zeros((self.step+1,1,3))
-            v_ = np.zeros((self.step+1,1,3))
-            x_[self.step,0] = [x,y,z]
-            v_[self.step,0] = [vx,vy,vz]
-            self.obj['x'] = np.append(self.obj['x'], x_, axis=1)
-            self.obj['v'] = np.append(self.obj['v'], v_, axis=1)
+            x_ = np.zeros((1,3))
+            v_ = np.zeros((1,3))
+            x_[0] = [x,y,z]
+            v_[0] = [vx,vy,vz]
+            self.obj['xi'] = np.append(self.obj['xi'], x_, axis=0)
+            self.obj['vi'] = np.append(self.obj['vi'], v_, axis=0)
 
             self.N += 1
         else:
             self.obj['M'][self.n_obj] = mass
             self.obj['id'][self.n_obj] = nm
-            self.obj['x'][self.step,self.n_obj] = [x,y,z]
-            self.obj['v'][self.step,self.n_obj] = [vx,vy,vz]
+            self.obj['xi'][self.n_obj] = [x,y,z]
+            self.obj['vi'][self.n_obj] = [vx,vy,vz]
 
         self.n_obj += 1
 
     # Updates position and velocity of object
     def update(self, dt):
-        assert self.step+1 == len(self.obj['x'])
-
         F = self.gravity() # axes: obj,coord
         M = np.expand_dims(self.obj['M'], axis=-1)
 
         v = self.obj['v'][self.step] + F / M * dt # axes: obj,coord
-        self.obj['v'] = np.vstack((self.obj['v'], v[np.newaxis,:])) # axes: step,obj,coord
+        self.obj['v'][self.step+1] = v
         # orbits won't close if order swapped
         x = self.obj['x'][self.step] + v * dt
-        self.obj['x'] = np.vstack((self.obj['x'], x[np.newaxis,:]))
+        self.obj['x'][self.step+1] = x
 
         self.step += 1
 
     def gravity(self):
         """
-        Computes force between all objects.
+        Computes the gravitational force on each object.
 
         Returns
         -------
@@ -127,10 +124,16 @@ class Particles(object):
         obj: dict
             Properties of time evolved objects.
         """
+        self.step = -1
         self.obj['M'] = self.obj['M'][:self.n_obj]
         self.obj['id'] = self.obj['id'][:self.n_obj]
-        self.obj['x'] = self.obj['x'][:,:self.n_obj,:]
-        self.obj['v'] = self.obj['v'][:,:self.n_obj,:]
+        self.obj['xi'] = self.obj['xi'][:self.n_obj]
+        self.obj['vi'] = self.obj['vi'][:self.n_obj]
+        self.obj['x'] = np.zeros((num_steps,self.n_obj,3)) # snapshots of positions
+        self.obj['v'] = np.zeros((num_steps,self.n_obj,3))
+
+        self.obj['x'][self.step] = self.obj['xi']
+        self.obj['v'][self.step] = self.obj['vi']
 
         dt = 86400/sample_rate
 
@@ -147,17 +150,13 @@ class Particles(object):
         ----------
         N: int
             Number of objects to generate.
-
         r0: float
             Radius of the sphere [m] within which the objects
             are created.
-
         mmax: float
             Maximum mass [kg] of the objects.
-
         vmax: float
             Maximum speed [m/s] in each direction.
-
         n: float, optional
             (Negative) exponent of force law, i.e. F ~ 1/r^n
         """
@@ -176,10 +175,8 @@ def randomize(r0, mmax, vmax):
     r0: float
         Radius of the sphere [m] within which the object 
         is created.
-
     mmax: float
         Maximum mass of the object [kg].
-
     vmax: float
         Maximum speed [m/s] in each direction.
 
@@ -294,25 +291,18 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
     ----------
     e: float
         Eccentricity [rad]
-
     a: float
         Semi-major axis [au]
-
     i: float
         Inclination [deg]
-
     Ω: float
         Longitude of the ascending node [deg]
-
     ϖ: float
         Longitude of periapsis [deg]
-
     L: float
         Mean longitude [deg] at given epoch
-
     m1: float
         Mass of orbiting object [kg]
-
     m2: float, optional
         Mass of central body, set to 1 solar mass by default
 
@@ -579,7 +569,7 @@ table.resize(160, 200)
 table.move(450, 50)
 table_item = QTableWidgetItem()
 def table_items(objects): # Update table of objects
-    num_items = objects['x'].shape[1]
+    num_items = objects['xi'].shape[0]
     table.setColumnCount(1)
     table.setRowCount(num_items)
     count = 0
