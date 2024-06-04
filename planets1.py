@@ -208,10 +208,10 @@ def animate(pos, num_steps, sample_rate, epoch, set_range,
         points = [ax.plot([], [], [], '.')[0] for i in positions]
         #points, = ax.plot([], [], [], '.') # plot the points together
     if set_range:
-        r = Particles.AU*radius
-        ax.set_xlim3d([-r,r])
-        ax.set_ylim3d([-r,r])
-        ax.set_zlim3d([-r,r])
+        r = Particles.AU * radius
+        ax.set_xlim3d([-r, r])
+        ax.set_ylim3d([-r, r])
+        ax.set_zlim3d([-r, r])
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
@@ -458,21 +458,21 @@ w.resize(640, 480)
 w.setWindowTitle('Settings')
 
 # Checkbox for setting range limits to solar system
-checkbox1 = QCheckBox(w); checkbox1.move(250, 290)
+checkbox1 = QCheckBox(w); checkbox1.move(250, 300)
 checkbox1.setChecked(True); checkbox1.setText('Set range at          AU')
-textbox0 = QLineEdit(w); textbox0.move(350, 290)
+textbox0 = QLineEdit(w); textbox0.move(350, 300)
 textbox0.resize(25, 20); textbox0.setText('40')
 # Checkbox for showing legend
-checkbox2 = QCheckBox(w); checkbox2.move(250, 310)
+checkbox2 = QCheckBox(w); checkbox2.move(250, 320)
 checkbox2.setChecked(False); checkbox2.setText('Show Legend')
 # Checkbox for animation
-checkbox3 = QCheckBox(w); checkbox3.move(250, 330)
+checkbox3 = QCheckBox(w); checkbox3.move(250, 340)
 checkbox3.setChecked(True); checkbox3.setText('Animated')
 # Checkbox for showing no trace of orbit
-checkbox4 = QCheckBox(w); checkbox4.move(250, 350)
+checkbox4 = QCheckBox(w); checkbox4.move(250, 360)
 checkbox4.setChecked(False); checkbox4.setText('Hide orbits')
 # Checkbox for saving animation to file
-checkbox5 = QCheckBox(w); checkbox5.move(250, 370)
+checkbox5 = QCheckBox(w); checkbox5.move(250, 380)
 checkbox5.setChecked(False); checkbox5.setText('Save animation to file')
 
 # Textboxes for entering parameters
@@ -538,28 +538,47 @@ textbox15.resize(50, 30); textbox15.setText('2')
 # Drop-down list for selecting solar system objects to fill textboxes 1-8
 label1 = QLabel(w); label1.setText('Presets'); label1.move(250, 140)
 combobox1 = QComboBox(w); combobox1.move(250, 160)
-combobox1.addItem('Sun'); combobox1.addItem('Mercury')
-combobox1.addItem('Venus'); combobox1.addItem('Earth')
-combobox1.addItem('Mars'); combobox1.addItem('Jupiter')
-combobox1.addItem('Saturn'); combobox1.addItem('Uranus')
-combobox1.addItem('Neptune'); combobox1.addItem('Pluto')
-combobox1.addItem('Halley'); combobox1.addItem('Hale-Bopp')
+combobox1.addItem('Sun')
+for x in solar_system.keys():
+    combobox1.addItem(x)
+combobox1.addItem('Kerbol')
+for x in ksp_system.keys():
+    combobox1.addItem(x)
+combobox1.addItem('*Jool')
+for x in jool_system.keys():
+    combobox1.addItem(x)
 combobox1.addItem('Random object')
 def on_activated1(text):
     text_str = str(text)
     if text_str != 'Random object':
-        if text_str != 'Sun':
-            e  = solar_system[text_str][0]
-            a  = solar_system[text_str][1]
-            i  = solar_system[text_str][2]
-            Om = solar_system[text_str][3]
-            wb = solar_system[text_str][4]
-            L  = solar_system[text_str][5]
-            m  = solar_system[text_str][6]
-            x, y, z, vx, vy, vz = kep2cart(e, a, i, Om, wb, L, m)
-        else:
+        if text_str == 'Sun':
             x = y = z = vx = vy = vz = 0
-            m = 1.989e30
+            m = 1.9884e30
+        elif text_str == 'Kerbol':
+            x = y = z = vx = vy = vz = 0
+            m = 1.7565459e28
+        elif text_str == '*Jool':
+            x = y = z = vx = vy = vz = 0
+            m = 4.2332127e24
+        else:
+            if text_str in solar_system.keys():
+                system = solar_system
+            elif text_str in ksp_system.keys():
+                system = ksp_system
+            elif text_str in jool_system.keys():
+                system = jool_system
+            else:
+                raise Exception('Unknown planetary system.')
+        
+            e  = system[text_str][0]
+            a  = system[text_str][1]
+            i  = system[text_str][2]
+            Om = system[text_str][3]
+            wb = system[text_str][4]
+            L  = system[text_str][5]
+            m  = system[text_str][6]
+            x, y, z, vx, vy, vz = kep2cart(e, a, i, Om, wb, L, m)
+
         textbox1.setText(str(x))
         textbox2.setText(str(y))
         textbox3.setText(str(z))
@@ -596,6 +615,16 @@ def on_activated2(text):
     textbox7.setText(str(test_particles[text_str][0]))
     textbox8.setText(text)
 
+# Drop-down list for selecting preset planetary systems
+combobox3 = QComboBox(w); combobox3.move(250, 240)
+combobox3.addItem('Solar System')
+combobox3.addItem('KSP system')
+combobox3.addItem('Jool system')
+preset_system = None
+def on_activated3(text):
+    global preset_system
+    preset_system = str(text)
+
 # Table of all particles created for the simulation
 label3 = QLabel(w)
 label3.setText('List of Objects')
@@ -617,7 +646,7 @@ def table_items(objects): # Update table of objects
 # Button for adding new particle
 button1 = QPushButton('Add Particle', w)
 button1.setToolTip('Add the particle to list')
-button1.resize(button1.sizeHint()); button1.move(250, 220)
+button1.resize(button1.sizeHint()); button1.move(250, 210)
 def on_click_button1():
     try:
         x = float(textbox1.text())
@@ -730,14 +759,33 @@ def on_click_button4():
     plt.close()
 
 button5 = QPushButton('Quick Add', w)
-button5.setToolTip('Add all solar system objects')
-button5.resize(button5.sizeHint()); button5.move(250, 250)
+button5.setToolTip('Add all objects in the preset planetary system')
+button5.resize(button5.sizeHint()); button5.move(250, 265)
 def on_click_button5():
-    on_activated1('Sun')
-    on_click_button1()
-    for i in solar_system.keys():
-        on_activated1(i)
+    global objects
+    if preset_system == 'Solar System':
+        objects = Particles(N=12)
+        on_activated1('Sun')
         on_click_button1()
+        for i in solar_system.keys():
+            on_activated1(i)
+            on_click_button1()
+    elif preset_system == 'KSP system':
+        objects = Particles(N=8)
+        on_activated1('Kerbol')
+        on_click_button1()
+        for i in ksp_system.keys():
+            on_activated1(i)
+            on_click_button1()
+    elif preset_system == 'Jool system':
+        objects = Particles(N=6)
+        on_activated1('*Jool')
+        on_click_button1()
+        for i in jool_system.keys():
+            on_activated1(i)
+            on_click_button1()
+    else:
+        raise Exception('Unknown planetary system.')
 
 # Connect the signals to the slots
 button1.clicked.connect(on_click_button1)
@@ -747,6 +795,7 @@ button4.clicked.connect(on_click_button4)
 button5.clicked.connect(on_click_button5)
 combobox1.activated[str].connect(on_activated1)
 combobox2.activated[str].connect(on_activated2)
+combobox3.activated[str].connect(on_activated3)
 w.show()
 
 sys.exit(app.exec_())
