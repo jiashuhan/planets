@@ -280,7 +280,7 @@ def plot(obj, num_steps, sample_rate, set_range, legend, epoch, radius=40):
     plt.show()
     table_items(obj)
 
-def kep2cart(e, a, i, Ω, ϖ, L, m1, ω=None, M=None, m2=1.989e30):
+def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None, m0=1.989e30):
     """
     Convert Keplerian orbital elements to state vectors in 
     heliocentric cartesian coordinates in the J2000 ecliptic 
@@ -291,22 +291,22 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, ω=None, M=None, m2=1.989e30):
     e: float
         Eccentricity [rad]
     a: float
-        Semi-major axis [au]
+        Semi-major axis [m]
     i: float
         Inclination [deg]
     Ω: float
         Longitude of the ascending node [deg]
+    m: float
+        Mass of orbiting object [kg]
     ϖ: float
         Longitude of periapsis [deg]
-    L: float
-        Mean longitude [deg] at given epoch
-    m1: float
-        Mass of orbiting object [kg]
     ω: float
         Argument of periapsis [deg]
+    L: float
+        Mean longitude [deg] at given epoch
     M: float
         Mean anomaly [deg] at given epoch
-    m2: float, optional
+    m0: float, optional
         Mass of central body, set to 1 solar mass by default
 
     Returns
@@ -337,11 +337,11 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, ω=None, M=None, m2=1.989e30):
         M = L - ϖ # mean anomaly [deg]
     E = ecc_anomaly(e, M) * np.pi / 180 # eccentric anomaly
 
-    # heliocentric coordinates [au] in orbital plane, z1 = 0
+    # heliocentric coordinates [m] in orbital plane, z1 = 0
     x0 = a * (np.cos(E) - e)
     y0 = a * (1 - e**2)**0.5 * np.sin(E)
 
-    # ecliptic coordinates [au]
+    # ecliptic coordinates [m]
     x =   ( np.cos(ω) * np.cos(Ω) - np.sin(ω) * np.sin(Ω) * np.cos(i)) * x0 \
         + (-np.sin(ω) * np.cos(Ω) - np.cos(ω) * np.sin(Ω) * np.cos(i)) * y0
     y =   ( np.cos(ω) * np.sin(Ω) + np.sin(ω) * np.cos(Ω) * np.cos(i)) * x0 \
@@ -349,10 +349,9 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, ω=None, M=None, m2=1.989e30):
     z =   np.sin(ω) * np.sin(i) * x0 + np.cos(ω) * np.sin(i) * y0
 
     # find velocity in m/s
-    au = 149597870700
-    mu = 6.6743e-11 * (m1 + m2)
+    mu = 6.6743e-11 * (m + m0)
     nu = 2 * np.arctan(np.sqrt((1 + e) / (1 - e)) * np.tan(E / 2)) # true anomaly
-    v  = np.sqrt(mu / a / au * (1 + e * np.cos(E)) / (1 - e * np.cos(E))) # orbital speed [m/s]
+    v  = np.sqrt(mu / a * (1 + e * np.cos(E)) / (1 - e * np.cos(E))) # orbital speed [m/s]
     theta = np.arcsin(np.sqrt((1 - e**2) / (1 - e**2 * np.cos(E)**2))) # angle between r and v
     vx0, vy0 = v * np.cos(nu + theta), v * np.sin(nu + theta) # velocity in orbital plane
     vx =   ( np.cos(ω) * np.cos(Ω) - np.sin(ω) * np.sin(Ω) * np.cos(i)) * vx0 \
@@ -361,7 +360,7 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, ω=None, M=None, m2=1.989e30):
          + (-np.sin(ω) * np.sin(Ω) + np.cos(ω) * np.cos(Ω) * np.cos(i)) * vy0
     vz =   np.sin(ω) * np.sin(i) * vx0 + np.cos(ω) * np.sin(i) * vy0
 
-    return x * au, y * au, z * au, vx, vy, vz
+    return x, y, z, vx, vy, vz
 
 # Solve for eccentric anomaly E [deg] given eccentricity e [rad] and mean anomaly M [deg]
 def ecc_anomaly(e, M, tolerance=0.01):
@@ -374,11 +373,9 @@ def ecc_anomaly(e, M, tolerance=0.01):
         E += dE
     return E # [deg]
 
-# Converts state vectors (r in au and v in m/s) into orbital elements
-def cart2kep(x, y, z, vx, vy, vz, m1, m2=1.989e30):
-    au = 149597870700
-    mu = 6.6743e-11 * (m1 + m2)
-    x *= au; y *= au; z *= au
+# Converts state vectors (r [m] and v [m/s]) into orbital elements
+def cart2kep(x, y, z, vx, vy, vz, m, m0=1.989e30):
+    mu = 6.6743e-11 * (m + m0)
     r = (x**2 + y**2 + z**2)**0.5
     v = (vx**2 + vy**2 + vz**2)**0.5
     eps = v**2 / 2 - mu / r # specific orbital energy
@@ -395,7 +392,8 @@ def cart2kep(x, y, z, vx, vy, vz, m1, m2=1.989e30):
     w = np.arctan2(z / np.sin(i), x * np.cos(Om) + y * np.sin(Om)) - nu
     wb = (w + Om + 2 * np.pi) % (2 * np.pi)
     L = (M + wb + 2 * np.pi) % (2 * np.pi)
-    return e, a / au, i * 180 / np.pi, Om * 180 / np.pi, wb * 180 / np.pi, L * 180 / np.pi
+    
+    return e, a, i * 180 / np.pi, Om * 180 / np.pi, wb * 180 / np.pi, L * 180 / np.pi
 
 # Keplerian elements (e, a, i, Ω, ϖ, L) and masses of solar system objects.
 # J2000, http://www.met.rdg.ac.uk/~ross/Astronomy/Planets.html
@@ -403,37 +401,38 @@ def cart2kep(x, y, z, vx, vy, vz, m1, m2=1.989e30):
 # Halley: Epoch 2449400.5 (1994-Feb-17.0), https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=1P
 # Hale-Bopp: Epoch 2454724.5 (2008-Sep-15.0)
 # must subtract 2144.5 from the JD number in the simulation for Halley, or add 3179.5 for Hale-Bopp
-solar_system = {'Mercury':  [0.20563069, 0.38709893,   7.00487,     48.33167,     77.45645,    252.25084,   3.301e23],
-                'Venus':    [0.00677323, 0.72333199,   3.39471,     76.68069,     131.53298,   181.97973,   4.867e24],
-                'Earth':    [0.01671022, 1.00000011,   0.00005,    -11.26064,     102.94719,   100.46435,   5.972e24],
-                'Mars':     [0.09341233, 1.52366231,   1.85061,     49.57854,     336.04084,   355.45332,   6.417e23],
-                'Jupiter':  [0.04839266, 5.20336301,   1.30530,     100.55615,    14.75385,    34.40438,    1.898e27],
-                'Saturn':   [0.05415060, 9.53707032,   2.48446,     113.71504,    92.43194,    49.94432,    5.683e26],
-                'Uranus':   [0.04716771, 19.19126393,  0.76986,     74.22988,     170.96424,   313.23218,   8.681e25],
-                'Neptune':  [0.00858587, 30.06896348,  1.76917,     131.72169,    44.97135,    304.88003,   1.024e26],
-                'Pluto':    [0.24880766, 39.48168677,  17.14175,    110.30347,    224.06676,   238.92881,   1.303e22],
-                'Halley':   [0.96714,    17.834,       162.26,      58.42,        169.75,      208.13,      2.2e14  ],
-                'Hale-Bopp':[0.99496070, 182.05197034, 89.21708989, 282.94875394, 53.61077446, 55.29041624, 1.3e16  ]
+au = Particles.AU
+solar_system = {'Mercury':  [0.20563069, 0.38709893 * au,   7.00487,     48.33167,     77.45645,    252.25084,   3.301e23],
+                'Venus':    [0.00677323, 0.72333199 * au,   3.39471,     76.68069,     131.53298,   181.97973,   4.867e24],
+                'Earth':    [0.01671022, 1.00000011 * au,   0.00005,    -11.26064,     102.94719,   100.46435,   5.972e24],
+                'Mars':     [0.09341233, 1.52366231 * au,   1.85061,     49.57854,     336.04084,   355.45332,   6.417e23],
+                'Jupiter':  [0.04839266, 5.20336301 * au,   1.30530,     100.55615,    14.75385,    34.40438,    1.898e27],
+                'Saturn':   [0.05415060, 9.53707032 * au,   2.48446,     113.71504,    92.43194,    49.94432,    5.683e26],
+                'Uranus':   [0.04716771, 19.19126393 * au,  0.76986,     74.22988,     170.96424,   313.23218,   8.681e25],
+                'Neptune':  [0.00858587, 30.06896348 * au,  1.76917,     131.72169,    44.97135,    304.88003,   1.024e26],
+                'Pluto':    [0.24880766, 39.48168677 * au,  17.14175,    110.30347,    224.06676,   238.92881,   1.303e22],
+                'Halley':   [0.96714,    17.834 * au,       162.26,      58.42,        169.75,      208.13,      2.2e14  ],
+                'Hale-Bopp':[0.99496070, 182.05197034 * au, 89.21708989, 282.94875394, 53.61077446, 55.29041624, 1.3e16  ]
                 }
 
-# Keplerian elements (e, a, i, Ω, ω, M) and masses of the KSP system; semi-major axis in m, M (at 0s UT) in rad, other angles in deg, mass in kg
+# Keplerian elements (e, a, i, Ω, ω, M (at 0s UT)) and masses of the KSP system; semi-major axis in m, all angles in deg, mass in kg
 # Sun mass: 1.7565459e28
-ksp_system   = {'Moho':  [0.2,   5263138304.,  7.,    70.,   15.,  3.14, 2.5263314e21],
-                'Eve':   [0.01,  9832684544.,  2.1,   15.,   0.,   3.14, 1.2243980e23],
-                'Kerbin':[0.,    13599840256., 0.,    0.,    0.,   3.14, 5.2915158e22],
-                'Duna':  [0.051, 20726155264., 0.06,  135.5, 0.,   3.14, 4.5154270e21],
-                'Dres':  [0.145, 40839348203., 5.,    280.,  90.,  3.14, 3.2190937e20],
-                'Jool':  [0.05,  68773560320., 1.304, 52.,   0.,   0.1,  4.2332127e24],
-                'Eeloo': [0.26,  90118820000., 6.15,  50.,   260., 3.14, 1.1149224e21]
+ksp_system   = {'Moho':  [0.2,   5263138304.,  7.,    70.,   15.,  3.14 / np.pi * 180, 2.5263314e21],
+                'Eve':   [0.01,  9832684544.,  2.1,   15.,   0.,   3.14 / np.pi * 180, 1.2243980e23],
+                'Kerbin':[0.,    13599840256., 0.,    0.,    0.,   3.14 / np.pi * 180, 5.2915158e22],
+                'Duna':  [0.051, 20726155264., 0.06,  135.5, 0.,   3.14 / np.pi * 180, 4.5154270e21],
+                'Dres':  [0.145, 40839348203., 5.,    280.,  90.,  3.14 / np.pi * 180, 3.2190937e20],
+                'Jool':  [0.05,  68773560320., 1.304, 52.,   0.,   0.1 / np.pi * 180,  4.2332127e24],
+                'Eeloo': [0.26,  90118820000., 6.15,  50.,   260., 3.14 / np.pi * 180, 1.1149224e21]
                 }
 
-# Keplerian elements (e, a, i, Ω, ω, M) and masses of the Jool system; semi-major axis in m, M (at 0s UT) in rad, other angles in deg, mass in kg
+# Keplerian elements (e, a, i, Ω, ω, M (at 0s UT)) and masses of the Jool system; semi-major axis in m, all angles in deg, mass in kg
 # Jool mass: 4.2332127e24
-jool_system  = {'Laythe':   [0.,    27184000.,  0.,    0.,  0.,  3.14, 2.9397311e22],
-                'Vall':     [0.,    43152000.,  0.,    0.,  0.,  0.9,  3.1087655e21],
-                'Tylo':     [0.,    68500000.,  0.025, 0.,  0.,  3.14, 4.2332127e22],
-                'Bop':      [0.235, 128500000., 15.,   10., 25., 0.9,  3.7261090e19],
-                'Pol':      [0.171, 179890000., 4.25,  2.,  15., 0.9,  1.0813507e19]
+jool_system  = {'Laythe':   [0.,    27184000.,  0.,    0.,  0.,  3.14 / np.pi * 180, 2.9397311e22],
+                'Vall':     [0.,    43152000.,  0.,    0.,  0.,  0.9 / np.pi * 180,  3.1087655e21],
+                'Tylo':     [0.,    68500000.,  0.025, 0.,  0.,  3.14 / np.pi * 180, 4.2332127e22],
+                'Bop':      [0.235, 128500000., 15.,   10., 25., 0.9 / np.pi * 180,  3.7261090e19],
+                'Pol':      [0.171, 179890000., 4.25,  2.,  15., 0.9 / np.pi * 180,  1.0813507e19]
                 }
 
 # comet1 = particle(3e14, -4e9, 5e12, 0, 100, 0, 0) # escape
@@ -563,21 +562,21 @@ def on_activated1(text):
         else:
             if text_str in solar_system.keys():
                 system = solar_system
+                m0 = 1.9884e30
+                e, a, i, Om, w, M, m = system[text_str]
+                x, y, z, vx, vy, vz = kep2cart(e, a, i, Om, m, ϖ=w, L=M, m0=m0)
             elif text_str in ksp_system.keys():
                 system = ksp_system
+                m0 = 1.7565459e28
+                e, a, i, Om, w, M, m = system[text_str]
+                x, y, z, vx, vy, vz = kep2cart(e, a, i, Om, m, ω=w, M=M, m0=m0)
             elif text_str in jool_system.keys():
                 system = jool_system
+                m0 = 4.2332127e24
+                e, a, i, Om, w, M, m = system[text_str]
+                x, y, z, vx, vy, vz = kep2cart(e, a, i, Om, m, ω=w, M=M, m0=m0)
             else:
-                raise Exception('Unknown planetary system.')
-        
-            e  = system[text_str][0]
-            a  = system[text_str][1]
-            i  = system[text_str][2]
-            Om = system[text_str][3]
-            wb = system[text_str][4]
-            L  = system[text_str][5]
-            m  = system[text_str][6]
-            x, y, z, vx, vy, vz = kep2cart(e, a, i, Om, wb, L, m)
+                raise Exception('Unknown planetary system.')    
 
         textbox1.setText(str(x))
         textbox2.setText(str(y))
