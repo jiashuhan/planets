@@ -1,7 +1,7 @@
 """
-------------------------------------------
-Simple solar system simulation, optimized
-------------------------------------------
+----------------------------------------------
+Simple Newtonian N-body simulation, optimized
+----------------------------------------------
 """
 import sys, numpy as np, matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -19,21 +19,20 @@ class Particles(object):
     n: float, optional
         (Negative) exponent of force law, i.e. F ~ 1/r^n
     """
-    G = 6.6743e-11
-    AU = 149597870700
+    G  = 6.6743e-11 # [m^3/kg/s^2]
+    AU = 149597870700 # [m]
 
     def __init__(self, N=10, n=2):
-        self.N = N
-        self.n_obj = 0
-        self.step = 0
-        self.obj = {}
-        self.obj['M'] = np.zeros(N) # masses
-        self.obj['id'] = np.zeros(N,dtype='<U21') # identifiers
-        self.obj['n'] = {} # id to index
-        self.obj['xi'] = np.zeros((N,3)) # initial positions; axes: obj,coord
-        self.obj['vi'] = np.zeros((N,3)) # initial velocities; axes: obj,coord
-
-        self.n = n # force ~ 1/r^n
+        self.N         = N
+        self.n_obj     = 0
+        self.step      = 0
+        self.obj       = {'M':  np.zeros(N),               # masses
+                          'id': np.zeros(N, dtype='<U21'), # identifiers
+                          'n':  {},                        # id to index
+                          'xi': np.zeros((N, 3)),          # initial positions [m]; axes: obj, coord
+                          'vi': np.zeros((N, 3))           # initial velocities [m/s]; axes: obj, coord
+                         }
+        self.n         = n # force index
 
     # add additional object
     def add(self, mass, x, y, z, vx, vy, vz, nm):
@@ -41,35 +40,35 @@ class Particles(object):
         Parameters
         ----------
         mass: float
-            Mass of object in kg
+            Mass of object [kg]
         x, y, z: float
-            Initial position (in m) of object, measured in the
-            inertial frame of the central body.
+            Initial position [m] of object, measured in the
+            initial rest frame of the central body.
         vx, vy, vz: float
-            Initial velocity (in m/s) of object, measured in the
-            inertial frame of the central body.
+            Initial velocity [m/s] of object, measured in the
+            initial rest frame of the central body.
         nm: str
             Identifier of object
         """
         self.obj['n'][nm] = self.n_obj
 
-        if self.n_obj >= self.N:
-            self.obj['M'] = np.append(self.obj['M'], mass)
+        if self.n_obj >= self.N: # more objects than number of slots
+            self.obj['M']  = np.append(self.obj['M'], mass)
             self.obj['id'] = np.append(self.obj['id'], nm)
 
             x_ = np.zeros((1,3))
             v_ = np.zeros((1,3))
-            x_[0] = [x,y,z]
-            v_[0] = [vx,vy,vz]
+            x_[0] = [x, y, z]
+            v_[0] = [vx, vy, vz]
             self.obj['xi'] = np.append(self.obj['xi'], x_, axis=0)
             self.obj['vi'] = np.append(self.obj['vi'], v_, axis=0)
 
             self.N += 1
         else:
-            self.obj['M'][self.n_obj] = mass
+            self.obj['M'][self.n_obj]  = mass
             self.obj['id'][self.n_obj] = nm
-            self.obj['xi'][self.n_obj] = [x,y,z]
-            self.obj['vi'][self.n_obj] = [vx,vy,vz]
+            self.obj['xi'][self.n_obj] = [x, y, z]
+            self.obj['vi'][self.n_obj] = [vx, vy, vz]
 
         self.n_obj += 1
 
@@ -93,13 +92,13 @@ class Particles(object):
         Returns
         -------
         force: 2d array, float
-            Force acting on each object; axes: obj,coord
+            Force acting on each object [N]; axes: obj, coord
         """
         M = self.obj['M']
         X = self.obj['x'][self.step] # current positions; axes: obj,coord
 
-        dX = X[:,np.newaxis] - X # axes: obj1,obj2,coord
-        r = np.sqrt(np.sum(dX**2, axis=-1)) # axes: obj1,obj2
+        dX = X[:,np.newaxis] - X # axes: obj1,obj2, coord
+        r = np.sqrt(np.sum(dX**2, axis=-1)) # axes: obj1, obj2
         _ = np.finfo(float).eps # avoid div by 0; self force removed by dX
         
         Fvec = self.G * np.sum(M[:,np.newaxis,np.newaxis] * M[:,np.newaxis] * dX / (r[...,np.newaxis]**(self.n+1) + _), axis=0) # axes: obj,coord
@@ -124,18 +123,18 @@ class Particles(object):
         obj: dict
             Properties of time evolved objects.
         """
-        self.step = -1
-        self.obj['M'] = self.obj['M'][:self.n_obj]
+        self.step      = -1
+        self.obj['M']  = self.obj['M'][:self.n_obj]
         self.obj['id'] = self.obj['id'][:self.n_obj]
         self.obj['xi'] = self.obj['xi'][:self.n_obj]
         self.obj['vi'] = self.obj['vi'][:self.n_obj]
-        self.obj['x'] = np.zeros((num_steps,self.n_obj,3)) # snapshots of positions
-        self.obj['v'] = np.zeros((num_steps,self.n_obj,3))
+        self.obj['x']  = np.zeros((num_steps, self.n_obj, 3)) # snapshots of positions
+        self.obj['v']  = np.zeros((num_steps, self.n_obj, 3))
 
         self.obj['x'][self.step] = self.obj['xi']
         self.obj['v'][self.step] = self.obj['vi']
 
-        dt = 86400/sample_rate
+        dt = 86400 / sample_rate
 
         for step in trange(num_steps):
             self.update(dt)
@@ -188,10 +187,10 @@ def randomize(r0, mmax, vmax):
     """
     r = np.random.uniform(0, r0)
     theta = np.random.uniform(0, np.pi)
-    phi = np.random.uniform(0, 2*np.pi)
+    phi = np.random.uniform(0, 2 * np.pi)
     mass = np.random.uniform(0, mmax)
-    x = r * np.sin(theta)*np.cos(phi)
-    y = r * np.sin(theta)*np.sin(phi)
+    x = r * np.sin(theta) * np.cos(phi)
+    y = r * np.sin(theta) * np.sin(phi)
     z = r * np.cos(theta)
     v = np.random.uniform(-1, 1, size=3)*vmax
     return mass, x, y, z, *v
@@ -281,7 +280,7 @@ def plot(obj, num_steps, sample_rate, set_range, legend, epoch, radius=40):
     plt.show()
     table_items(obj)
 
-def kep2cart(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
+def kep2cart(e, a, i, Ω, ϖ, L, m1, ω=None, M=None, m2=1.989e30):
     """
     Convert Keplerian orbital elements to state vectors in 
     heliocentric cartesian coordinates in the J2000 ecliptic 
@@ -303,6 +302,10 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
         Mean longitude [deg] at given epoch
     m1: float
         Mass of orbiting object [kg]
+    ω: float
+        Argument of periapsis [deg]
+    M: float
+        Mean anomaly [deg] at given epoch
     m2: float, optional
         Mass of central body, set to 1 solar mass by default
 
@@ -310,7 +313,7 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
     -------
     x, y, z, vx, vy, vz: tuple
         Position [m] and velocity [m/s] measured in the 
-        inertial frame of the central body.
+        initial rest frame of the central body.
 
     Note
     ----
@@ -324,63 +327,75 @@ def kep2cart(e, a, i, Ω, ϖ, L, m1, m2=1.989e30):
 
     For planets, the elements used are e, a, i, Ω, ϖ, L.
     """
-    ω = (ϖ - Ω)*np.pi/180 # argument of periapsis [rad]
-    i = i*np.pi/180
-    Ω = Ω*np.pi/180
-    M = L - ϖ # mean anomaly [deg]
-    E = ecc_anomaly(e, M)*np.pi/180 # eccentric anomaly
-    # heliocentric coordinates in orbital plane, z1=0
-    x0 = a*(np.cos(E)-e)
-    y0 = a*(1-e**2)**(1/2)*np.sin(E)
-    # ecliptic coordinates, in au
-    x = (np.cos(ω)*np.cos(Ω)-np.sin(ω)*np.sin(Ω)*np.cos(i))*x0+(-np.sin(ω)*np.cos(Ω)-np.cos(ω)*np.sin(Ω)*np.cos(i))*y0
-    y = (np.cos(ω)*np.sin(Ω)+np.sin(ω)*np.cos(Ω)*np.cos(i))*x0+(-np.sin(ω)*np.sin(Ω)+np.cos(ω)*np.cos(Ω)*np.cos(i))*y0
-    z = np.sin(ω)*np.sin(i)*x0+np.cos(ω)*np.sin(i)*y0
+    if ω is None:
+        ω = (ϖ - Ω) * np.pi / 180 # argument of periapsis [rad]
+    else:
+        ω = ω * np.pi / 180
+    i = i * np.pi / 180
+    Ω = Ω * np.pi / 180
+    if M is None:
+        M = L - ϖ # mean anomaly [deg]
+    E = ecc_anomaly(e, M) * np.pi / 180 # eccentric anomaly
+
+    # heliocentric coordinates [au] in orbital plane, z1 = 0
+    x0 = a * (np.cos(E) - e)
+    y0 = a * (1 - e**2)**0.5 * np.sin(E)
+
+    # ecliptic coordinates [au]
+    x =   ( np.cos(ω) * np.cos(Ω) - np.sin(ω) * np.sin(Ω) * np.cos(i)) * x0 \
+        + (-np.sin(ω) * np.cos(Ω) - np.cos(ω) * np.sin(Ω) * np.cos(i)) * y0
+    y =   ( np.cos(ω) * np.sin(Ω) + np.sin(ω) * np.cos(Ω) * np.cos(i)) * x0 \
+        + (-np.sin(ω) * np.sin(Ω) + np.cos(ω) * np.cos(Ω) * np.cos(i)) * y0
+    z =   np.sin(ω) * np.sin(i) * x0 + np.cos(ω) * np.sin(i) * y0
+
     # find velocity in m/s
     au = 149597870700
-    mu = 6.6743e-11*(m1+m2)
-    nu = 2*np.arctan(np.sqrt((1+e)/(1-e))*np.tan(E/2)) # true anomaly
-    v = np.sqrt(mu/a/au*(1+e*np.cos(E))/(1-e*np.cos(E))) # orbital speed
-    theta = np.arcsin(np.sqrt((1-e**2)/(1-e**2*np.cos(E)**2))) # angle between r and v
-    vx0, vy0 = v*np.cos(nu+theta), v*np.sin(nu+theta) # velocity in orbital plane
-    vx = (np.cos(ω)*np.cos(Ω)-np.sin(ω)*np.sin(Ω)*np.cos(i))*vx0+(-np.sin(ω)*np.cos(Ω)-np.cos(ω)*np.sin(Ω)*np.cos(i))*vy0
-    vy = (np.cos(ω)*np.sin(Ω)+np.sin(ω)*np.cos(Ω)*np.cos(i))*vx0+(-np.sin(ω)*np.sin(Ω)+np.cos(ω)*np.cos(Ω)*np.cos(i))*vy0
-    vz = np.sin(ω)*np.sin(i)*vx0+np.cos(ω)*np.sin(i)*vy0
-    return x*au, y*au, z*au, vx, vy, vz
+    mu = 6.6743e-11 * (m1 + m2)
+    nu = 2 * np.arctan(np.sqrt((1 + e) / (1 - e)) * np.tan(E / 2)) # true anomaly
+    v  = np.sqrt(mu / a / au * (1 + e * np.cos(E)) / (1 - e * np.cos(E))) # orbital speed [m/s]
+    theta = np.arcsin(np.sqrt((1 - e**2) / (1 - e**2 * np.cos(E)**2))) # angle between r and v
+    vx0, vy0 = v * np.cos(nu + theta), v * np.sin(nu + theta) # velocity in orbital plane
+    vx =   ( np.cos(ω) * np.cos(Ω) - np.sin(ω) * np.sin(Ω) * np.cos(i)) * vx0 \
+         + (-np.sin(ω) * np.cos(Ω) - np.cos(ω) * np.sin(Ω) * np.cos(i)) * vy0
+    vy =   ( np.cos(ω) * np.sin(Ω) + np.sin(ω) * np.cos(Ω) * np.cos(i)) * vx0 \
+         + (-np.sin(ω) * np.sin(Ω) + np.cos(ω) * np.cos(Ω) * np.cos(i)) * vy0
+    vz =   np.sin(ω) * np.sin(i) * vx0 + np.cos(ω) * np.sin(i) * vy0
 
-# Solve for eccentric anomaly [deg] given e [rad] and M [deg]
+    return x * au, y * au, z * au, vx, vy, vz
+
+# Solve for eccentric anomaly E [deg] given eccentricity e [rad] and mean anomaly M [deg]
 def ecc_anomaly(e, M, tolerance=0.01):
-    e_deg = e*180/np.pi
-    E = M+e_deg*np.sin(M*np.pi/180)
+    e_deg = e * 180 / np.pi
+    E = M + e_deg * np.sin(M * np.pi / 180)
     dE = 1
     while dE > tolerance:
-        dM = M-(E-e_deg*np.sin(E*np.pi/180))
-        dE = dM/(1-e*np.cos(E*np.pi/180))
+        dM = M - (E - e_deg * np.sin(E * np.pi / 180))
+        dE = dM / (1 - e * np.cos(E * np.pi / 180))
         E += dE
     return E # [deg]
 
 # Converts state vectors (r in au and v in m/s) into orbital elements
 def cart2kep(x, y, z, vx, vy, vz, m1, m2=1.989e30):
     au = 149597870700
-    mu = 6.6743e-11*(m1+m2)
+    mu = 6.6743e-11 * (m1 + m2)
     x *= au; y *= au; z *= au
-    r = (x**2+y**2+z**2)**(1/2)
-    v = (vx**2+vy**2+vz**2)**(1/2)
-    eps = v**2/2-mu/r # specific orbital energy
-    a = -mu/2/eps
-    theta = np.arccos((x*vx+y*vy+z*vz)/r/v) # angle between r and v
-    h = r*v*np.sin(theta) # specific angular momentum
-    hx, hy, hz = y*vz-z*vy, z*vx-x*vz, x*vy-y*vx
-    e = (1-h**2/mu/a)**(1/2)
-    E = np.arccos((1-r/a)/e) # eccentric anomaly
-    M = E - e*np.cos(E) # mean anomaly
-    i = np.arccos(hz/h)
-    Om = (np.arctan2(hx, -hy)+2*np.pi)%(2*np.pi)
-    nu = 2*np.arctan(np.sqrt((1+e)/(1-e))*np.tan(E/2)) # true anomaly
-    w = np.arctan2(z/np.sin(i), x*np.cos(Om)+y*np.sin(Om))-nu
-    wb = (w+Om+2*np.pi)%(2*np.pi)
-    L = (M+wb+2*np.pi)%(2*np.pi)
-    return e, a/au, i*180/np.pi, Om*180/np.pi, wb*180/np.pi, L*180/np.pi
+    r = (x**2 + y**2 + z**2)**0.5
+    v = (vx**2 + vy**2 + vz**2)**0.5
+    eps = v**2 / 2 - mu / r # specific orbital energy
+    a = -mu / 2 / eps
+    theta = np.arccos((x * vx + y * vy + z * vz) / r / v) # angle between r and v
+    h = r * v * np.sin(theta) # specific angular momentum
+    hx, hy, hz = y * vz - z * vy, z * vx - x * vz, x * vy - y * vx
+    e = (1 - h**2 / mu / a)**0.5
+    E = np.arccos((1 - r / a) / e) # eccentric anomaly
+    M = E - e * np.cos(E) # mean anomaly
+    i = np.arccos(hz / h)
+    Om = (np.arctan2(hx, -hy) + 2 * np.pi) % (2 * np.pi)
+    nu = 2 * np.arctan(np.sqrt((1 + e) / (1 - e)) * np.tan(E / 2)) # true anomaly
+    w = np.arctan2(z / np.sin(i), x * np.cos(Om) + y * np.sin(Om)) - nu
+    wb = (w + Om + 2 * np.pi) % (2 * np.pi)
+    L = (M + wb + 2 * np.pi) % (2 * np.pi)
+    return e, a / au, i * 180 / np.pi, Om * 180 / np.pi, wb * 180 / np.pi, L * 180 / np.pi
 
 # Keplerian elements (e, a, i, Ω, ϖ, L) and masses of solar system objects.
 # J2000, http://www.met.rdg.ac.uk/~ross/Astronomy/Planets.html
@@ -388,18 +403,39 @@ def cart2kep(x, y, z, vx, vy, vz, m1, m2=1.989e30):
 # Halley: Epoch 2449400.5 (1994-Feb-17.0), https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=1P
 # Hale-Bopp: Epoch 2454724.5 (2008-Sep-15.0)
 # must subtract 2144.5 from the JD number in the simulation for Halley, or add 3179.5 for Hale-Bopp
-orbital_elements = {'Mercury':[0.20563069, 0.38709893, 7.00487, 48.33167, 77.45645, 252.25084, 3.301e23],
-                    'Venus':[0.00677323, 0.72333199, 3.39471, 76.68069, 131.53298, 181.97973, 4.867e24],
-                    'Earth':[0.01671022, 1.00000011, 0.00005, -11.26064, 102.94719, 100.46435, 5.972e24],
-                    'Mars':[0.09341233, 1.52366231, 1.85061, 49.57854, 336.04084, 355.45332, 6.417e23],
-                    'Jupiter':[0.04839266, 5.20336301, 1.30530, 100.55615, 14.75385, 34.40438, 1.898e27],
-                    'Saturn':[0.05415060, 9.53707032, 2.48446, 113.71504, 92.43194, 49.94432, 5.683e26],
-                    'Uranus':[0.04716771, 19.19126393, 0.76986, 74.22988, 170.96424, 313.23218, 8.681e25],
-                    'Neptune':[0.00858587, 30.06896348, 1.76917, 131.72169, 44.97135, 304.88003, 1.024e26],
-                    'Pluto':[0.24880766, 39.48168677, 17.14175, 110.30347, 224.06676, 238.92881, 1.303e22],
-                    'Halley':[0.96714, 17.834, 162.26, 58.42, 169.75, 208.13, 2.2e14],
-                    'Hale-Bopp':[0.99496070, 182.05197034, 89.21708989, 282.94875394, 53.61077446, 55.29041624, 1.3e16]
-}
+solar_system = {'Mercury':  [0.20563069, 0.38709893,   7.00487,     48.33167,     77.45645,    252.25084,   3.301e23],
+                'Venus':    [0.00677323, 0.72333199,   3.39471,     76.68069,     131.53298,   181.97973,   4.867e24],
+                'Earth':    [0.01671022, 1.00000011,   0.00005,    -11.26064,     102.94719,   100.46435,   5.972e24],
+                'Mars':     [0.09341233, 1.52366231,   1.85061,     49.57854,     336.04084,   355.45332,   6.417e23],
+                'Jupiter':  [0.04839266, 5.20336301,   1.30530,     100.55615,    14.75385,    34.40438,    1.898e27],
+                'Saturn':   [0.05415060, 9.53707032,   2.48446,     113.71504,    92.43194,    49.94432,    5.683e26],
+                'Uranus':   [0.04716771, 19.19126393,  0.76986,     74.22988,     170.96424,   313.23218,   8.681e25],
+                'Neptune':  [0.00858587, 30.06896348,  1.76917,     131.72169,    44.97135,    304.88003,   1.024e26],
+                'Pluto':    [0.24880766, 39.48168677,  17.14175,    110.30347,    224.06676,   238.92881,   1.303e22],
+                'Halley':   [0.96714,    17.834,       162.26,      58.42,        169.75,      208.13,      2.2e14  ],
+                'Hale-Bopp':[0.99496070, 182.05197034, 89.21708989, 282.94875394, 53.61077446, 55.29041624, 1.3e16  ]
+                }
+
+# Keplerian elements (e, a, i, Ω, ω, M) and masses of the KSP system; semi-major axis in m, M (at 0s UT) in rad, other angles in deg, mass in kg
+# Sun mass: 1.7565459e28
+ksp_system   = {'Moho':  [0.2,   5263138304.,  7.,    70.,   15.,  3.14, 2.5263314e21],
+                'Eve':   [0.01,  9832684544.,  2.1,   15.,   0.,   3.14, 1.2243980e23],
+                'Kerbin':[0.,    13599840256., 0.,    0.,    0.,   3.14, 5.2915158e22],
+                'Duna':  [0.051, 20726155264., 0.06,  135.5, 0.,   3.14, 4.5154270e21],
+                'Dres':  [0.145, 40839348203., 5.,    280.,  90.,  3.14, 3.2190937e20],
+                'Jool':  [0.05,  68773560320., 1.304, 52.,   0.,   0.1,  4.2332127e24],
+                'Eeloo': [0.26,  90118820000., 6.15,  50.,   260., 3.14, 1.1149224e21]
+                }
+
+# Keplerian elements (e, a, i, Ω, ω, M) and masses of the Jool system; semi-major axis in m, M (at 0s UT) in rad, other angles in deg, mass in kg
+# Jool mass: 4.2332127e24
+jool_system  = {'Laythe':   [0.,    27184000.,  0.,    0.,  0.,  3.14, 2.9397311e22],
+                'Vall':     [0.,    43152000.,  0.,    0.,  0.,  0.9,  3.1087655e21],
+                'Tylo':     [0.,    68500000.,  0.025, 0.,  0.,  3.14, 4.2332127e22],
+                'Bop':      [0.235, 128500000., 15.,   10., 25., 0.9,  3.7261090e19],
+                'Pol':      [0.171, 179890000., 4.25,  2.,  15., 0.9,  1.0813507e19]
+                }
+
 # comet1 = particle(3e14, -4e9, 5e12, 0, 100, 0, 0) # escape
 # comet1 = particle(3e14, -4e9, 5e12, 0, 1000, 1000, 0) # capture
 # comet1 = particle(3e14, -4e9, 5e12, 2e12, 500, -1000, 2000, 'Some comet')
@@ -513,14 +549,14 @@ def on_activated1(text):
     text_str = str(text)
     if text_str != 'Random object':
         if text_str != 'Sun':
-            e = orbital_elements[text_str][0]
-            a = orbital_elements[text_str][1]
-            i = orbital_elements[text_str][2]
-            Om = orbital_elements[text_str][3]
-            wb = orbital_elements[text_str][4]
-            L = orbital_elements[text_str][5]
-            m = orbital_elements[text_str][6]
-            x,y,z,vx,vy,vz = kep2cart(e,a,i,Om,wb,L,m)
+            e  = solar_system[text_str][0]
+            a  = solar_system[text_str][1]
+            i  = solar_system[text_str][2]
+            Om = solar_system[text_str][3]
+            wb = solar_system[text_str][4]
+            L  = solar_system[text_str][5]
+            m  = solar_system[text_str][6]
+            x, y, z, vx, vy, vz = kep2cart(e, a, i, Om, wb, L, m)
         else:
             x = y = z = vx = vy = vz = 0
             m = 1.989e30
@@ -699,7 +735,7 @@ button5.resize(button5.sizeHint()); button5.move(250, 250)
 def on_click_button5():
     on_activated1('Sun')
     on_click_button1()
-    for i in orbital_elements.keys():
+    for i in solar_system.keys():
         on_activated1(i)
         on_click_button1()
 
