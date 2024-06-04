@@ -134,10 +134,12 @@ class Particles(object):
         self.obj['x'][self.step] = self.obj['xi']
         self.obj['v'][self.step] = self.obj['vi']
 
-        dt = 86400 / sample_rate
+        dt = 86400 / sample_rate # timestep [s]
 
         for step in trange(num_steps):
             self.update(dt)
+
+        self.UT = np.arange(self.step) * dt
 
         return self.obj
 
@@ -196,42 +198,55 @@ def randomize(r0, mmax, vmax):
     return mass, x, y, z, *v
 
 # Animate the orbits
-def animate(pos, num_steps, sample_rate, epoch, set_range,
-            hide_trace=False, save_file=False, radius=40):
-    fig = plt.figure()
-    ax = p3.Axes3D(fig, auto_add_to_figure=False)
-    fig.add_axes(ax)
+def animate(pos, num_steps, epoch, set_range,
+            hide_trace=False, save_file=False, UT=False, radius=40):
+    fig1 = plt.figure()
+    fig2, (ax2, ax3) = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
+    ax1 = p3.Axes3D(fig1, auto_add_to_figure=False)
+    fig1.add_axes(ax1)
     positions = np.moveaxis(pos,0,-1) # list of paths; the indices are: [object,direction (xyz),step]
     if not hide_trace:
-        paths = [ax.plot(i[0,0:1], i[1,0:1], i[2,0:1])[0] for i in positions]
+        paths3d = [ax1.plot(i[0,0:1], i[1,0:1], i[2,0:1])[0] for i in positions]
+        paths2d_z = [ax2.plot(i[0,0:1], i[1,0:1])[0] for i in positions] # viewed along z-axis
+        paths2d_x = [ax3.plot(i[1,0:1], i[2,0:1])[0] for i in positions] # viewed along z-axis
     else:
-        points = [ax.plot([], [], [], '.')[0] for i in positions]
-        #points, = ax.plot([], [], [], '.') # plot the points together
+        points3d = [ax1.plot([], [], [], '.')[0] for i in positions]
+        #points3d, = ax1.plot([], [], [], '.') # plot the points together
+        points2d_z = [ax2.plot([], [], '.')[0] for i in positions]
+        points2d_x = [ax3.plot([], [], '.')[0] for i in positions]
     if set_range:
         r = Particles.AU * radius
-        ax.set_xlim3d([-r, r])
-        ax.set_ylim3d([-r, r])
-        ax.set_zlim3d([-r, r])
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    title = ax.text2D(0.5, 0.95, '', horizontalalignment='center',
-                      fontsize=14, transform=ax.transAxes)
+        ax1.set_xlim3d([-r, r]); ax1.set_ylim3d([-r, r]); ax1.set_zlim3d([-r, r])
+        ax2.set_xlim([-r, r]); ax2.set_ylim([-r, r]); ax2.set_aspect('equal')
+        ax3.set_xlim([-r, r]); ax3.set_ylim([-r, r]); ax3.set_aspect('equal')
+    ax1.set_xlabel('X'); ax1.set_ylabel('Y'); ax1.set_zlabel('Z')
+    ax2.set_xlabel('X'); ax2.set_ylabel('Y')
+    ax3.set_xlabel('Y'); ax3.set_ylabel('Z')
+    title1 = ax1.text2D(0.5, 0.95, '', horizontalalignment='center',
+                        fontsize=14, transform=ax1.transAxes)
+    title2 = ax2.text(0.5, 0.95, '', horizontalalignment='center',
+                      fontsize=14, transform=ax1.transAxes)
+
     if not hide_trace:
-        anim = animation.FuncAnimation(fig, update_paths, num_steps,
-                fargs=(positions, paths, title, sample_rate, epoch), interval=1, blit=False)
+        anim3d = animation.FuncAnimation(fig1, update_paths, num_steps,
+                  fargs=(positions, paths3d, title1, epoch, UT), interval=1, blit=False)
+        anim2d = animation.FuncAnimation(fig2, update_paths_2d, num_steps,
+                  fargs=(positions, paths2d_z, paths2d_x, title2, epoch, UT), interval=1, blit=False)
     else:
-        anim = animation.FuncAnimation(fig, no_trace_update, num_steps,
-                fargs=(positions, points, title, sample_rate, epoch), interval=1, blit=False)
+        anim3d = animation.FuncAnimation(fig1, no_trace_update, num_steps,
+                  fargs=(positions, points3d, title1, epoch, UT), interval=1, blit=False)
+        anim2d = animation.FuncAnimation(fig2, no_trace_update_2d, num_steps,
+                  fargs=(positions, points2d_z, points2d_x, title2, epoch, UT), interval=1, blit=False)
     if save_file:
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=12, metadata=dict(artist='Me'), bitrate=1800)
-        anim.save('results/paths.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
+        anim3d.save('results/paths3d.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
+        anim2d.save('results/paths2d.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
     plt.show()
-    return anim
+    return anim3d, anim2d
 
 # Update paths for animation
-def update_paths(num_steps, positions, paths, title, sample_rate, epoch):
+def update_paths(num_steps, positions, paths, title, epoch, UT):
     for path, position in zip(paths, positions): # for each object
         # Use these to keep temporary trails
         #if num_steps >= 5:
@@ -241,26 +256,66 @@ def update_paths(num_steps, positions, paths, title, sample_rate, epoch):
         #else:
         path.set_data(position[0:2, :num_steps])
         path.set_3d_properties(position[2, :num_steps])
-        title.set_text('JD %.1f'%(epoch+num_steps/sample_rate))
+        if UT:
+            title.set_text('UT = %d s'%objects.UT[num_steps])
+        else:
+            title.set_text('JD %.1f'%(epoch+objects.UT[num_steps]/86400))
     return paths, title
 
 # Although in FuncAnimation the variable 'num_steps' is provided, only the
 # individual iterations of range(num_steps) are fed into 'step'
-def no_trace_update(step, positions, points, title, sample_rate, epoch):
+def no_trace_update(step, positions, points, title, epoch, UT):
     for position, point in zip(positions, points):
         num_steps = position.shape[1] # needs to be looped back manually
         step1 = step%num_steps
         point.set_data(position[0,step1:step1+1], position[1,step1:step1+1])
         point.set_3d_properties(position[2,step1:step1+1])
-    title.set_text('JD %.1f'%(epoch+step%num_steps/sample_rate))
+    if UT:
+        title.set_text('UT = %d s'%objects.UT[num_steps])
+    else:
+        title.set_text('JD %.1f'%(epoch+objects.UT[num_steps]/86400))
     # Use these if you want to plot the points together
     #positions = np.array(positions)
     #points.set_data(positions[:,0,step], positions[:,1,step])
     #points.set_3d_properties(positions[:,2,step])
     return points
 
+def update_paths_2d(num_steps, positions, paths2d_z, paths2d_x, title, epoch, UT):
+    for path_z, path_x, position in zip(paths2d_z, paths2d_x, positions): # for each object
+        # Use these to keep temporary trails
+        #if num_steps >= 5:
+        #    path.set_data(position[0:2, num_steps-4:num_steps])
+        #    path.set_3d_properties(position[2, num_steps-4:num_steps])
+        #    title.set_text('JD %.1f'%(epoch+num_steps/sample_rate))
+        #else:
+        path_z.set_data(position[0:2, :num_steps])
+        path_x.set_data(position[1:3, :num_steps])
+        if UT:
+            title.set_text('UT = %d s'%objects.UT[num_steps])
+        else:
+            title.set_text('JD %.1f'%(epoch+objects.UT[num_steps]/86400))
+    return paths2d_z, paths2d_x, title
+
+# Although in FuncAnimation the variable 'num_steps' is provided, only the
+# individual iterations of range(num_steps) are fed into 'step'
+def no_trace_update_2d(step, positions, points2d_z, points2d_x, title, epoch, UT):
+    for position, point_z, point_x in zip(positions, points2d_z, points2d_x):
+        num_steps = position.shape[1] # needs to be looped back manually
+        step1 = step%num_steps
+        point_z.set_data(position[0,step1:step1+1], position[1,step1:step1+1])
+        point_x.set_data(position[1,step1:step1+1], position[2,step1:step1+1])
+    if UT:
+        title.set_text('UT = %d s'%objects.UT[num_steps])
+    else:
+        title.set_text('JD %.1f'%(epoch+objects.UT[num_steps]/86400))
+    # Use these if you want to plot the points together
+    #positions = np.array(positions)
+    #points.set_data(positions[:,0,step], positions[:,1,step])
+    #points.set_3d_properties(positions[:,2,step])
+    return points2d_z, points2d_x
+
 # Plot orbits
-def plot(obj, num_steps, sample_rate, set_range, legend, epoch, radius=40):
+def plot(obj, num_steps, set_range, legend, epoch, UT, radius=40):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     for i in range(obj['x'].shape[1]):
@@ -273,7 +328,10 @@ def plot(obj, num_steps, sample_rate, set_range, legend, epoch, radius=40):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title('JD %.1f'%(epoch+num_steps/sample_rate))
+    if UT:
+        ax.set_title('UT = %d s'%objects.UT[num_steps])
+    else:
+        ax.set_title('JD %.1f'%(epoch+objects.UT[num_steps]/86400))
     if legend:
         plt.legend()
     plt.savefig('results/orbits.pdf', bbox_inches='tight')
@@ -392,7 +450,7 @@ def cart2kep(x, y, z, vx, vy, vz, m, m0=1.989e30):
     w = np.arctan2(z / np.sin(i), x * np.cos(Om) + y * np.sin(Om)) - nu
     wb = (w + Om + 2 * np.pi) % (2 * np.pi)
     L = (M + wb + 2 * np.pi) % (2 * np.pi)
-    
+
     return e, a, i * 180 / np.pi, Om * 180 / np.pi, wb * 180 / np.pi, L * 180 / np.pi
 
 # Keplerian elements (e, a, i, Ω, ϖ, L) and masses of solar system objects.
@@ -619,7 +677,7 @@ combobox3 = QComboBox(w); combobox3.move(250, 240)
 combobox3.addItem('Solar System')
 combobox3.addItem('KSP system')
 combobox3.addItem('Jool system')
-preset_system = None
+preset_system = 'Solar System' # use Solar System by default
 def on_activated3(text):
     global preset_system
     preset_system = str(text)
@@ -685,12 +743,13 @@ def on_click_button2():
         return 1
     obj = objects.run(num_steps, sample_rate)
     plot_size = int(textbox0.text()) # box size in au
+    UT = False # use JD number
     if checkbox3.isChecked():
-        animate(obj['x'], num_steps, sample_rate, epoch, checkbox1.isChecked(), 
-                checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
+        animate(obj['x'], num_steps, epoch, checkbox1.isChecked(), 
+                checkbox4.isChecked(), checkbox5.isChecked(), UT, plot_size)
     else:
-        plot(obj, num_steps, sample_rate, 
-             checkbox1.isChecked(), checkbox2.isChecked(), epoch, plot_size)
+        plot(obj, num_steps, 
+             checkbox1.isChecked(), checkbox2.isChecked(), epoch, UT, plot_size)
 
 # Button for running simulation with all random particles
 button3 = QPushButton('Start Random', w)
@@ -724,7 +783,7 @@ def on_click_button3():
     obj = objects.run(num_steps, sample_rate)
     plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
-        animate(obj['x'], num_steps, sample_rate, epoch, checkbox1.isChecked(), 
+        animate(obj['x'], num_steps, epoch, checkbox1.isChecked(), 
                 checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
     else:
         plot(obj, num_steps, sample_rate, 
