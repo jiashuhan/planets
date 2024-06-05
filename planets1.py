@@ -105,6 +105,19 @@ class Particles(object):
 
         return Fvec
 
+    # computes position and speed of the center of mass of the system for all snapshots
+    def COM(self):
+        assert self.step > 0, "No results."
+
+        M = self.obj['M'] # axes: objects
+        X = self.obj['x'] # axes: snapshots, objects, coord
+        V = self.obj['v'] # axes: snapshots, objects, coord
+
+        X_com = np.sum(M[np.newaxis,:,np.newaxis] * X, axis=1) / np.sum(M) # axes: snapshots, coord
+        V_com = np.sum(M[np.newaxis,:,np.newaxis] * V, axis=1) / np.sum(M) # axes: snapshots, coord
+
+        return X_com, V_com # axes: snapshots, coord
+
     def run(self, num_steps, sample_rate):
         """
         Runs the simulation and updates the objects. First compute
@@ -199,11 +212,16 @@ def randomize(r0, mmax, vmax):
 
 # Animate the orbits
 def animate(pos, num_steps, epoch, set_range,
-            hide_trace=False, save_file=False, UT=False, radius=40):
+            hide_trace=False, COM=False, save_file=False, UT=False, radius=40):
     fig1 = plt.figure()
     fig2, (ax2, ax3) = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
     ax1 = p3.Axes3D(fig1, auto_add_to_figure=False)
     fig1.add_axes(ax1)
+
+    if COM: # plot in COM frame
+        X_com, _ = objects.COM()
+        pos = pos - X_com[:,np.newaxis,:]
+
     positions = np.moveaxis(pos,0,-1) # list of paths; the indices are: [object,direction (xyz),step]
     if not hide_trace:
         paths3d = [ax1.plot(i[0,0:1], i[1,0:1], i[2,0:1])[0] for i in positions]
@@ -224,7 +242,7 @@ def animate(pos, num_steps, epoch, set_range,
     ax3.set_xlabel('Y'); ax3.set_ylabel('Z')
     title1 = ax1.text2D(0.5, 0.95, '', horizontalalignment='center',
                         fontsize=14, transform=ax1.transAxes)
-    title2 = ax2.text(0.5, 0.95, '', horizontalalignment='center',
+    title2 = ax2.text(0.3, 1, '', horizontalalignment='center',
                       fontsize=14, transform=ax1.transAxes)
 
     if not hide_trace:
@@ -271,9 +289,9 @@ def no_trace_update(step, positions, points, title, epoch, UT):
         point.set_data(position[0,step1:step1+1], position[1,step1:step1+1])
         point.set_3d_properties(position[2,step1:step1+1])
     if UT:
-        title.set_text('UT = %d s'%objects.UT[num_steps])
+        title.set_text('UT = %d s'%objects.UT[step1])
     else:
-        title.set_text('JD %.1f'%(epoch+objects.UT[num_steps]/86400))
+        title.set_text('JD %.1f'%(epoch+objects.UT[step1]/86400))
     # Use these if you want to plot the points together
     #positions = np.array(positions)
     #points.set_data(positions[:,0,step], positions[:,1,step])
@@ -305,9 +323,9 @@ def no_trace_update_2d(step, positions, points2d_z, points2d_x, title, epoch, UT
         point_z.set_data(position[0,step1:step1+1], position[1,step1:step1+1])
         point_x.set_data(position[1,step1:step1+1], position[2,step1:step1+1])
     if UT:
-        title.set_text('UT = %d s'%objects.UT[num_steps])
+        title.set_text('UT = %d s'%objects.UT[step1])
     else:
-        title.set_text('JD %.1f'%(epoch+objects.UT[num_steps]/86400))
+        title.set_text('JD %.1f'%(epoch+objects.UT[step1]/86400))
     # Use these if you want to plot the points together
     #positions = np.array(positions)
     #points.set_data(positions[:,0,step], positions[:,1,step])
@@ -528,9 +546,12 @@ checkbox3.setChecked(True); checkbox3.setText('Animated')
 # Checkbox for showing no trace of orbit
 checkbox4 = QCheckBox(w); checkbox4.move(250, 360)
 checkbox4.setChecked(False); checkbox4.setText('Hide orbits')
-# Checkbox for saving animation to file
+# Checkbox for COM frame
 checkbox5 = QCheckBox(w); checkbox5.move(250, 380)
-checkbox5.setChecked(False); checkbox5.setText('Save animation to file')
+checkbox5.setChecked(True); checkbox5.setText('Use COM frame')
+# Checkbox for saving animation to file
+checkbox6 = QCheckBox(w); checkbox6.move(250, 400)
+checkbox6.setChecked(False); checkbox6.setText('Save animation to file')
 
 # Textboxes for entering parameters
 label6 = QLabel(w); label6.setText('X (m)'); label6.move(20, 30)
@@ -728,8 +749,8 @@ button2.setToolTip('Start simulation')
 button2.resize(button2.sizeHint()); button2.move(250, 420)
 def on_click_button2():
     try:
-        sample_rate = int(textbox13.text())
-        num_years = int(textbox14.text())
+        sample_rate = float(textbox13.text())
+        num_years = float(textbox14.text())
         epoch = float(textbox16.text())
     except ValueError: # If these not entered, set default values
         sample_rate = 1
@@ -742,11 +763,11 @@ def on_click_button2():
         print("Error: no objects entered.")
         return 1
     obj = objects.run(num_steps, sample_rate)
-    plot_size = int(textbox0.text()) # box size in au
+    plot_size = float(textbox0.text()) # box size in au
     UT = False # use JD number
     if checkbox3.isChecked():
         animate(obj['x'], num_steps, epoch, checkbox1.isChecked(), 
-                checkbox4.isChecked(), checkbox5.isChecked(), UT, plot_size)
+                checkbox4.isChecked(), checkbox5.isChecked(), checkbox6.isChecked(), UT, plot_size)
     else:
         plot(obj, num_steps, 
              checkbox1.isChecked(), checkbox2.isChecked(), epoch, UT, plot_size)
@@ -784,10 +805,10 @@ def on_click_button3():
     plot_size = int(textbox0.text()) # box size in au
     if checkbox3.isChecked():
         animate(obj['x'], num_steps, epoch, checkbox1.isChecked(), 
-                checkbox4.isChecked(), checkbox5.isChecked(), plot_size)
+                checkbox4.isChecked(), checkbox5.isChecked(), checkbox6.isChecked(), UT, plot_size)
     else:
         plot(obj, num_steps, sample_rate, 
-             checkbox1.isChecked(), checkbox2.isChecked(), epoch, plot_size)
+             checkbox1.isChecked(), checkbox2.isChecked(), epoch, UT, plot_size)
 
 # Button for clearing old list of objects
 button4 = QPushButton('Reset', w)
