@@ -3,7 +3,7 @@ import numpy as np
 Msun = 1.9884e30 # [kg]
 G    = 6.6743e-11 # [m^3/kg/s^2]
 
-def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None, m0=Msun):
+def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None):
     """
     Convert Keplerian orbital elements of a given epoch to state vectors in 
     the heliocentric cartesian coordinates in the ecliptic plane. The x-axis
@@ -20,7 +20,7 @@ def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None, m0=Msun):
     Ω: float
         Longitude of the ascending node [deg]
     m: float
-        Mass of orbiting object [kg]
+        Total mass (central body + orbiting object) [kg]
     ϖ: float
         Longitude of periapsis [deg]; used if ω is None
     ω: float
@@ -29,12 +29,10 @@ def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None, m0=Msun):
         Mean longitude [deg] at given epoch; used if M is None
     M: float
         Mean anomaly [deg] at given epoch
-    m0: float, optional
-        Mass of central body [kg], set to 1 solar mass by default
 
     Returns
     -------
-    x, y, z, vx, vy, vz: tuple
+    (x, y, z), (vx, vy, vz): tuples
         Position [m] and velocity [m/s] measured in the 
         initial rest frame of the central body.
 
@@ -51,7 +49,7 @@ def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None, m0=Msun):
     (2) For solar system planets, the elements used are e, a, i, Ω, ϖ, L.
     """
     if ω is None: # provided ϖ
-        ω = (ϖ - Ω) * np.pi / 180 # argument of periapsis [rad]
+        ω = (ϖ - Ω) * np.pi / 180 # argument of periapsis [rad], 0 < ω < 2*pi
     else: # provided ω
         ω = ω * np.pi / 180
     
@@ -59,15 +57,16 @@ def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None, m0=Msun):
     Ω = Ω * np.pi / 180
 
     if M is None:
-        M = L - ϖ # mean anomaly [deg]
+        M = L - ϖ # mean anomaly [deg], 0 < M < 360
 
-    E  = ecc_anomaly(e, M) * np.pi / 180 # eccentric anomaly [rad]
-    nu = 2 * np.arctan2(np.sqrt(1 + e) * np.sin(E / 2), np.sqrt(1 - e) * np.cos(E / 2)) # true anomaly [rad]
+    E  = ecc_anomaly(e, M) * np.pi / 180 # eccentric anomaly [rad], 0 < E < 2*pi
+    nu = 2 * np.arctan2(np.sqrt(1 + e) * np.sin(E / 2), \
+                        np.sqrt(1 - e) * np.cos(E / 2)) # true anomaly [rad], 0 < nu < 2*pi
 
     # heliocentric coordinates [m] in orbital plane, z0 = 0
-    # r0 = a * (1 - e * np.cos(E))
-    x0 = a * (np.cos(E) - e) # = r0 * np.cos(nu)
-    y0 = a * (1 - e**2)**0.5 * np.sin(E) # = r0 * np.sin(nu)
+    r0 = a * (1 - e * np.cos(E))
+    x0 = r0 * np.cos(nu) # = a * (np.cos(E) - e)
+    y0 = r0 * np.sin(nu) # = a * (1 - e**2)**0.5 * np.sin(E)
 
     # ecliptic coordinates [m]
     x =   ( np.cos(ω) * np.cos(Ω) - np.sin(ω) * np.sin(Ω) * np.cos(i)) * x0 \
@@ -77,11 +76,15 @@ def kep2cart(e, a, i, Ω, m, ϖ=None, ω=None, L=None, M=None, m0=Msun):
     z =   np.sin(ω) * np.sin(i) * x0 + np.cos(ω) * np.sin(i) * y0
 
     # find velocity in ecliptic coordinates [m/s]
-    mu = G * (m + m0)
+    mu = G * m # [m^3/s^2]
     v  = np.sqrt(mu / a * (1 + e * np.cos(E)) / (1 - e * np.cos(E))) # orbital speed [m/s]
-    
-    theta = np.arcsin(np.sqrt((1 - e**2) / (1 - e**2 * np.cos(E)**2))) # angle between r and v [rad]
-    vx0, vy0 = v * np.cos(nu + theta), v * np.sin(nu + theta) # velocity in orbital plane [m/s]
+    # INCORRECT
+    #θ = np.arcsin(np.sqrt((1 - e**2) / (1 - e**2 * np.cos(E)**2))) # angle between r and v [rad]
+    #vx0 = v * np.cos(nu + θ) # velocity in orbital plane [m/s]
+    #vy0 = v * np.sin(nu + θ)
+    # CORRECT
+    vx0 = -v / np.sqrt(1 - e**2 * np.cos(E)**2) * np.sin(E) # velocity in orbital plane [m/s]
+    vy0 =  v / np.sqrt(1 - e**2 * np.cos(E)**2) * np.sqrt(1 - e**2) * np.cos(E) 
 
     vx =   ( np.cos(ω) * np.cos(Ω) - np.sin(ω) * np.sin(Ω) * np.cos(i)) * vx0 \
          + (-np.sin(ω) * np.cos(Ω) - np.cos(ω) * np.sin(Ω) * np.cos(i)) * vy0
@@ -108,25 +111,66 @@ def ecc_anomaly(e, M, tolerance=0.002):
 def mean_anomaly(e, E):
     return E - e * 180 / np.pi * np.sin(E * np.pi / 180)
 
-# Converts state vectors (r [m] and v [m/s]) into orbital elements
-def cart2kep(x, y, z, vx, vy, vz, m, m0=Msun):
-    mu  = G * (m + m0) # [m^3/s^2]
-    r   = (x**2 + y**2 + z**2)**0.5
-    v   = (vx**2 + vy**2 + vz**2)**0.5
+def cart2kep(x, y, z, vx, vy, vz, m):
+    """
+    Convert cartesian state vectors (r [m] and v [m/s]) of a given epoch 
+    in the ecliptic coordinates to Keplerian orbital elements. The x-axis 
+    points toward the vernal equinox (in the solar system case).
 
-    eps = v**2 / 2 - mu / r # specific orbital energy [m^2/s^2]
-    a   = -mu / 2 / eps     # semi-major axis [m]
+    Parameters
+    ----------
+    x, y, z: float
+        Position [m] measured in the initial rest frame of the central body
+    vx, vy, vz: float
+        Velocity [m/s] measured in the initial rest frame of the central body
+    m: float
+        Total mass (central body + orbiting object) [kg]
+
+    Returns
+    -------
+    e, a, i, Ω, ϖ, L: tuple
+        Eccentricity (0 < e < 1), semi-major axis a [m], inclination i [deg] 
+        (0 < i < 180), longitude of the ascending node Ω [deg] (0 < Ω < 360), 
+        longitude of periapsis ϖ [deg] (0 < ϖ < 360), and mean longitude L [deg]
+        at given epoch (0 < L < 360)
+
+    Notes
+    -----
+    (1) Since the inverse trig functions have limited ranges (0 < np.arccos < pi, 
+        -pi/2 < np.arcsin < pi/2, -pi < np.arctan2 < pi), one must be careful in
+        the calculation of the eccentric anomaly and the angle between the position
+        and velocity state vectors to account for all possible values
+    (2) Due to (1), we cannot use E  = np.arccos((1 - r / a) / e) to caluclate the
+        eccentric anomaly because it only has a range of 0 < E < pi.
+    (3) cosθ, the cosine between the state vectors (x, y, z) and (vx, vy, vz), 
+        should be positive when pi/2 < E < pi (quadrant II) or 3*pi/2 < E < 2*pi 
+        (quadrant IV), and negative otherwise.
+    """
+    mu   = G * m # [m^3/s^2]
+    r    = (x**2 + y**2 + z**2)**0.5
+    v    = (vx**2 + vy**2 + vz**2)**0.5
+    cosθ = (x * vx + y * vy + z * vz) / r / v # cosine between (x, y, z) and (vx, vy, vz)
     
-    theta = np.arccos((x * vx + y * vy + z * vz) / r / v) # angle between r and v [rad]
-    h     = r * v * np.sin(theta)                         # specific angular momentum [m^2/s]
+    eps  = v**2 / 2 - mu / r # specific orbital energy [m^2/s^2]
+    a    = -mu / 2 / eps     # semi-major axis [m]
+    
+    # h is conserved, so sinθ should stay positive
+    h    = r * v * np.sqrt(1 - cosθ**2) # specific angular momentum [m^2/s]
     hx, hy, hz = y * vz - z * vy, z * vx - x * vz, x * vy - y * vx
     
-    e  = (1 - h**2 / mu / a)**0.5                                      # eccentricity [rad]
-    E  = np.arccos((1 - r / a) / e)                                    # eccentric anomaly [rad]
-    M  = E - e * np.cos(E)                                             # mean anomaly [rad]
-    i  = np.arccos(hz / h)                                             # inclination [rad]
-    Ω  = (np.arctan2(hx, -hy) + 2 * np.pi) % (2 * np.pi)               # longitude of the ascending node [rad]
-    nu = 2 * np.arctan(np.sqrt((1 + e) / (1 - e)) * np.tan(E / 2))     # true anomaly [rad]
+    e  = (1 - h**2 / mu / a)**0.5                        # eccentricity [rad]
+    i  = np.arccos(hz / h)                               # inclination [rad], 0 < i < pi
+    Ω  = (np.arctan2(hx, -hy) + 2 * np.pi) % (2 * np.pi) # longitude of the ascending node [rad], 0 < Ω < 2*pi
+    
+    p  = a * (1 - e**2) # semi-latus rectum [m]
+    # INCORRECT - LIMITED ANGLE RANGE
+    #E  = np.arccos((1 - r / a) / e)                                                     # eccentric anomaly [rad], 0 < E < pi
+    #nu = 2 * np.arctan2(np.sqrt(1 + e) * np.sin(E / 2), np.sqrt(1 - e) * np.cos(E / 2)) # true anomaly [rad], 0 < nu < pi
+    # CORRECT
+    nu = (np.arctan2(np.sqrt(p / mu) * r * v * cosθ, p - r) + 2 * np.pi) % (2 * np.pi)    # true anomaly [rad], 0 < nu < 2*pi
+    E  = 2 * np.arctan2(np.sqrt(1 - e) * np.sin(nu / 2), np.sqrt(1 + e) * np.cos(nu / 2)) # eccentric anomaly [rad], 0 < E < 2*pi
+    M  = E - e * np.sin(E)                                                                # mean anomaly [rad], 0 < M < 2*pi
+
     ω  = np.arctan2(z / np.sin(i), x * np.cos(Ω) + y * np.sin(Ω)) - nu # argument of periapsis [rad]
     ϖ = (ω + Ω + 2 * np.pi) % (2 * np.pi)                              # longitude of periapsis [rad]
     L = (M + ϖ + 2 * np.pi) % (2 * np.pi)                              # mean longitude [rad]
