@@ -3,6 +3,7 @@ import mpl_toolkits.mplot3d.axes3d as p3
 import matplotlib.animation as animation
 
 plot_dir = './results/plots/'
+vid_dir = './results/videos/'
 
 colormaps = {'solar':  ['yellow', 'silver', 'gold', 'deepskyblue', 'tomato', 'peru', 'wheat', 'paleturquoise', 'cornflowerblue', 'pink', 'orange', 'lime'],
              'ksp':    ['yellow', 'tan', 'mediumslateblue', 'lightskyblue', 'salmon', 'darkgoldenrod', 'limegreen', 'silver'],
@@ -202,12 +203,27 @@ def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7
 def make_animation(input_path, output_dir, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7,
                    wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07):
     results = np.load(input_path, allow_pickle=True).item()
-    anim3d, anim2d = animation(results, set_range=set_range, plot_range=plot_range, COM=COM, cm=cm, lw=lw,
-                               wspace=wspace, tmargin=tmargin, bmargin=bmargin, lmargin=lmargin, rmargin=rmargin)
+    output_name = input_path.split('/')[-1][:-4]
+
+    anim3d, anim2d = animate(results, set_range=set_range, plot_range=plot_range, COM=COM, cm=cm, lw=lw,
+                     wspace=wspace, tmargin=tmargin, bmargin=bmargin, lmargin=lmargin, rmargin=rmargin, show=False)
 
     Writer = animation.writers['ffmpeg']
     writer = Writer(fps=12, metadata=dict(artist='Me'), bitrate=1800)
-    anim3d.save(output_dir+'paths3d.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
-    anim2d.save(output_dir+'paths2d.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
+    anim3d.save(output_dir+output_name+'_3d.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
+    anim2d.save(output_dir+output_name+'_2d.mp4', writer=writer)#, fps=15, extra_args=['-vcodec', 'libx264'])
 
-    return anim3d, anim2d
+if __name__ == '__main__':
+    import sys
+
+    if len(sys.argv) > 1:
+        assert len(sys.argv) >= 3
+
+        input_path = sys.argv[1]
+        plot_range = float(sys.argv[2])
+        if len(sys.argv) >= 4:
+            colormap = sys.argv[3]
+        else:
+            colormap = 'default'
+
+        make_animation(input_path, vid_dir, set_range=True, plot_range=plot_range, COM=True, cm=colormap)

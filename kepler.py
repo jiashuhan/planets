@@ -210,4 +210,9 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         assert len(sys.argv) >= 4
-        print('(e, a, i, Ω, ϖ, L) = ', result2kep(*sys.argv[1:4]))
+
+        e, a, i, Ω, ϖ, L = result2kep(*sys.argv[1:4])
+        ω = (ϖ - Ω + 360) % 360
+        M = (L - ϖ + 360) % 360
+        print('(e, a, i, Ω, ϖ, L) = ', (e, a, i, Ω, ϖ, L))
+        print('(e, a, i, Ω, ω, M) = ', (e, a, i, Ω, ω, M))

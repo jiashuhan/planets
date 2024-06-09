@@ -497,12 +497,14 @@ def on_click_start():
             COM=com_check.isChecked(), cm=cm, show=True)
 
     output_name = '%s_%dsteps_%.1fd_n_%.1f'%(nbody.label, sample_rate, duration, force)
+
+    # plot final state
     fig1, fig2 = plot(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
                       COM=com_check.isChecked(), cm=cm)
-
     fig1.savefig(plot_dir+output_name+'_3d.pdf', bbox_inches='tight')
     fig2.savefig(plot_dir+output_name+'_2d.pdf', bbox_inches='tight')
     
+    # save results
     np.save(output_path+output_name+'.npy', results)
 
 start_button.clicked.connect(on_click_start)
