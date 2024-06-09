@@ -1,4 +1,4 @@
-import sys
+import sys, numpy as np
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from particles import *
@@ -437,7 +437,7 @@ epoch_box.move(epoch_label.pos().x() + epoch_label.width(), epoch_label.pos().y(
 res_label = QLabel(w); res_label.setText('Resolution [1/d]')
 res_label.move(epoch_label.pos().x(), epoch_box.pos().y() + epoch_box.height() + vec_box_h_gap)
 
-res_box = QLineEdit(w); res_box.setText('1')
+res_box = QLineEdit(w); res_box.setText('10') # 10 steps per day gives reasonable accuracy
 res_box.resize(vec_box_size * 3, vec_box_size)
 res_box.move(res_label.pos().x() + res_label.width(), res_label.pos().y() - vec_box_offset)
 
@@ -479,13 +479,31 @@ def on_click_start():
         print("Error: no objects entered.")
         return 1
     
+    nbody.epoch = epoch
     results = nbody.run(num_steps, sample_rate)
     results['kepler'] = current_preset
 
-    # show preview
-    animate(results, set_range=range_check.isChecked(), COM=com_check.isChecked(), plot_range=float(range_box.text()))
+    if '*Sun' in results['id']:
+        cm = 'solar'
+    elif '*Kerbol' in results['id']:
+        cm = 'ksp'
+    elif '*Jool' in results['id']:
+        cm = 'jool'
+    else:
+        cm = 'default'
 
-    np.save(output_path+'%s_%dsteps_%.1fd_n_%.1f.npy'%(nbody.label, sample_rate, duration, force), results)
+    # show preview
+    animate(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
+            COM=com_check.isChecked(), cm=cm, show=True)
+
+    output_name = '%s_%dsteps_%.1fd_n_%.1f'%(nbody.label, sample_rate, duration, force)
+    fig1, fig2 = plot(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
+                      COM=com_check.isChecked(), cm=cm)
+
+    fig1.savefig(plot_dir+output_name+'_3d.pdf', bbox_inches='tight')
+    fig2.savefig(plot_dir+output_name+'_2d.pdf', bbox_inches='tight')
+    
+    np.save(output_path+output_name+'.npy', results)
 
 start_button.clicked.connect(on_click_start)
 
@@ -515,12 +533,13 @@ def on_click_reset():
     vmax_box.setText('1e3')
     mmax_box.setText('1e27')
     epoch_box.setText('2451545.0')
-    res_box.setText('1')
+    res_box.setText('10')
     duration_box.setText('3652.5')
     force_box.setText('2')
     table.setColumnCount(0)
     table.setRowCount(0)
-    plt.close()
+    plt.close(); plt.close()
+
 reset_button.clicked.connect(on_click_reset)
 
 w.show()
