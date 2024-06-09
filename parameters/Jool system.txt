@@ -1,0 +1,15 @@
+# Keplerian orbital elements and masses of objects in the Jool system
+# Epoch = 0.0s UT
+# Semi-major axis in [AU], otherwise in [m]
+0
+# Use longitude of periapsis (ϖ), otherwise use argument of periapsis (ω)
+0
+# Use mean longitude (L), otherwise use mean anomaly (M)
+0
+# Name     e      a           i       Ω    ϖ/ω  L/M      Mass [kg]
+*Jool,     0.,            0.,  0.,     0.,  0.,   0.,    4.2332127e24
+Laythe,    0.,     27184000.,  0.,     0.,  0., 179.909, 2.9397311e22
+Vall,      0.,     43152000.,  0.,     0.,  0.,  51.566, 3.1087655e21
+Tylo,      0.,     68500000.,  0.025,  0.,  0., 179.909, 4.2332127e22
+Bop,       0.235, 128500000., 15.,    10., 25.,  51.566, 3.7261090e19
+Pol,       0.171, 179890000.,  4.25,   2., 15.,  51.566, 1.0813507e19

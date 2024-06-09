@@ -176,3 +176,38 @@ def cart2kep(x, y, z, vx, vy, vz, m):
     L = (M + ϖ + 2 * np.pi) % (2 * np.pi)                              # mean longitude [rad]
 
     return e, a, i * 180 / np.pi, Ω * 180 / np.pi, ϖ * 180 / np.pi, L * 180 / np.pi
+
+def result2kep(input_file, name, central_body, snapshot=-1):
+    """
+    Calculate orbital elements from simuation results
+
+    Parameters
+    ----------
+    input_file: str
+        Path to simulation result
+    name: str
+        Name of the orbiting body whose orbital elements are to be calculated
+    central_body: str
+        Name of the central body
+    snapshot: int, optional
+        Index of the snapshot used; defaut: -1 (last)
+
+    Returns
+    -------
+    e, a, i, Ω, ϖ, L, m: tuple
+    """
+    result = np.load(input_file, allow_pickle=True).item()
+
+    i = result['id_index'][name]
+    X, V = result['x'][snapshot, i], result['v'][snapshot, i]
+    m = result['kepler'][name][6]
+    m0 = result['kepler'][central_body][6]
+
+    return cart2kep(*X, *V, m + m0)
+
+if __name__ == '__main__':
+    import sys
+
+    if len(sys.argv) > 1:
+        assert len(sys.argv) >= 4
+        print('(e, a, i, Ω, ϖ, L) = ', result2kep(*sys.argv[1:4]))

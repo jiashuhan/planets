@@ -1,0 +1,10 @@
+# Test cases (state vectors)
+# 1 + 2 - fork; 3 + 4 - spiral/solenoid; 
+# Name           Mass [kg]  x [m]  y [m]  z [m]  vx [m/s]  vy [m/s]  vz [m/s]
+Test Particle 1, 2e30,      1e12,  0.,    0.,    0.,       1e4,      0.
+Test Particle 2, 2e30,     -1e12,  0.,    0.,    0.,       1e4,      0.
+Test Particle 3, 2e30,      1e12,  0.,    0.,    0.,       1e3,      0.
+Test Particle 4, 2e30,      1e12,  0.,    1e12, -1e3,     -1e3,     -1e3
+Escaping comet,  3e14,     -4e9,   5e12,  0.,    1e2,      0.,       0.
+Captured comet,  3e14,     -4e9,   5e12,  0.,    1e3,      1e3,      0.
+Some comet,      3e14,     -4e9,   5e12,  2e12,  5e2,     -1e3,      2e3
