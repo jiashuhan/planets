@@ -63,9 +63,9 @@ def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=
         ax3.set_aspect('equal')
         ax3.yaxis.tick_right(); ax3.yaxis.set_label_position("right")
 
-    ax1.set_xlabel('X'); ax1.set_ylabel('Y'); ax1.set_zlabel('Z')
-    ax2.set_xlabel('X'); ax2.set_ylabel('Y')
-    ax3.set_xlabel('Y'); ax3.set_ylabel('Z')
+    ax1.set_xlabel('X [m]'); ax1.set_ylabel('Y [m]'); ax1.set_zlabel('Z [m]')
+    ax2.set_xlabel('X [m]'); ax2.set_ylabel('Y [m]')
+    ax3.set_xlabel('Y [m]'); ax3.set_ylabel('Z [m]')
     
     ax1.legend(loc='center left', frameon=False, ncol=1, bbox_to_anchor=(-0.25, 0.5))
     ax2.legend(loc='center left', frameon=False, ncol=1, bbox_to_anchor=(-2*lmargin/(1-lmargin), 0.5))
@@ -129,7 +129,7 @@ def update_paths_2d(step, positions, paths2d_z, paths2d_x, points2d_z, points2d_
 def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7,
          wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07):
     name     = results['id']
-    pos      = results['x'] # 
+    pos      = results['x']
     sim_time = results['t']
     Nsteps   = len(sim_time)
     epoch    = results['epoch']
@@ -179,9 +179,9 @@ def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7
         ax3.set_aspect('equal')
         ax3.yaxis.tick_right(); ax3.yaxis.set_label_position("right")
 
-    ax1.set_xlabel('X'); ax1.set_ylabel('Y'); ax1.set_zlabel('Z')
-    ax2.set_xlabel('X'); ax2.set_ylabel('Y')
-    ax3.set_xlabel('Y'); ax3.set_ylabel('Z')
+    ax1.set_xlabel('X [m]'); ax1.set_ylabel('Y [m]'); ax1.set_zlabel('Z [m]')
+    ax2.set_xlabel('X [m]'); ax2.set_ylabel('Y [m]')
+    ax3.set_xlabel('Y [m]'); ax3.set_ylabel('Z [m]')
     
     ax1.legend(loc='center left', frameon=False, ncol=1, bbox_to_anchor=(-0.4, 0.5))
     ax2.legend(loc='center left', frameon=False, ncol=1, bbox_to_anchor=(-2*lmargin/(1-lmargin), 0.5))
