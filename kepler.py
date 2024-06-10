@@ -199,11 +199,18 @@ def result2kep(input_file, name, central_body, snapshot=-1):
     result = np.load(input_file, allow_pickle=True).item()
 
     i = result['id_index'][name]
-    X, V = result['x'][snapshot, i], result['v'][snapshot, i]
     m = result['kepler'][name][6]
-    m0 = result['kepler'][central_body][6]
+    X, V = result['x'][snapshot, i], result['v'][snapshot, i]
 
-    return cart2kep(*X, *V, m + m0)
+    j  = result['id_index'][central_body]
+    m0 = result['kepler'][central_body][6]
+    X0, V0 = result['x'][snapshot, j], result['v'][snapshot, j]
+
+    # orbital elements is computed relative to the central body, not the origin
+    X_ = np.array(X) - np.array(X0)
+    V_ = np.array(V) - np.array(V0)
+
+    return cart2kep(*X_, *V_, m + m0)
 
 if __name__ == '__main__':
     import sys
