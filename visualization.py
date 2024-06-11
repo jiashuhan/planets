@@ -16,7 +16,7 @@ def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=
     name     = results['id']
     pos      = results['x']
     sim_time = results['t']
-    Nsteps   = len(sim_time)
+    Nsnap    = len(sim_time) # number of snapshots, which is 1 (initial) + the number of steps
     epoch    = results['epoch']
 
     plt.style.use('dark_background')
@@ -77,9 +77,9 @@ def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=
     title2d = ax2.text(1, 1+tmargin/(1-tmargin), '', horizontalalignment='center',
                        fontsize=14, transform=ax2.transAxes)
 
-    anim3d = animation.FuncAnimation(fig1, update_paths, Nsteps,
+    anim3d = animation.FuncAnimation(fig1, update_paths, Nsnap,
               fargs=(positions, paths3d, points3d, title3d, sim_time, epoch), interval=1, blit=False)
-    anim2d = animation.FuncAnimation(fig2, update_paths_2d, Nsteps,
+    anim2d = animation.FuncAnimation(fig2, update_paths_2d, Nsnap,
               fargs=(positions, paths2d_z, paths2d_x, points2d_z, points2d_x, title2d, sim_time, epoch), interval=1, blit=False)
 
     if show:
@@ -88,7 +88,7 @@ def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=
     return anim3d, anim2d
 
 # Update paths for animation
-# FuncAnimation takes individual iterations of range(Nsteps) and feeds them into 'step'
+# FuncAnimation takes individual iterations of range(Nsnap) and feeds them into 'step'
 def update_paths(step, positions, paths, points, title, sim_time, epoch):
     trail_tail = 0 # set to 0 to plot the entire trail
     for path, point, position in zip(paths, points, positions): # for each object
@@ -131,7 +131,6 @@ def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7
     name     = results['id']
     pos      = results['x']
     sim_time = results['t']
-    Nsteps   = len(sim_time)
     epoch    = results['epoch']
 
     plt.style.use('dark_background')

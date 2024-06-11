@@ -473,14 +473,14 @@ def on_click_start():
         force       = 2.
         print("Warning: number of steps not entered; set to default values.")
 
-    num_steps = int(sample_rate * duration)
+    Nsteps = int(sample_rate * duration)
 
     if nbody.n_obj == 0:
         print("Error: no objects entered.")
         return 1
     
     nbody.epoch = epoch
-    results = nbody.run(num_steps, sample_rate)
+    results = nbody.run(Nsteps, sample_rate)
     results['kepler'] = current_preset
 
     if '*Sun' in results['id']:

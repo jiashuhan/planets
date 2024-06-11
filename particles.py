@@ -83,10 +83,10 @@ class Particles(object):
         M = np.expand_dims(self.obj['M'], axis=-1)
 
         v = self.obj['v'][self.step] + F / M * dt # axes: obj,coord
-        self.obj['v'][self.step+1] = v
+        self.obj['v'][self.step + 1] = v
         # orbits won't close if order swapped
         x = self.obj['x'][self.step] + v * dt
-        self.obj['x'][self.step+1] = x
+        self.obj['x'][self.step + 1] = x
 
         self.step += 1
 
@@ -123,7 +123,7 @@ class Particles(object):
 
         return X_com, V_com # axes: snapshots, coord
 
-    def run(self, num_steps, sample_rate):
+    def run(self, Nsteps, sample_rate):
         """
         Runs the simulation and updates the objects. First compute
         forces acting on all objects, then update the position and
@@ -131,7 +131,7 @@ class Particles(object):
 
         Parameters
         ----------
-        num_steps: int
+        Nsteps: int
             Total number of steps in the simulation.
         sample_rate: float
             Number of steps per day.
@@ -140,24 +140,29 @@ class Particles(object):
         -------
         obj: dict
             Properties of time evolved objects.
+
+        Notes
+        -----
+        There are a total of (Nsteps + 1) snapshots, with the first 
+        one (0) being the initial state
         """
-        self.step      = -1
+        self.step      = 0 # step 0 is the initial state
         self.obj['M']  = self.obj['M'][:self.n_obj]
         self.obj['id'] = self.obj['id'][:self.n_obj]
         self.obj['xi'] = self.obj['xi'][:self.n_obj]
         self.obj['vi'] = self.obj['vi'][:self.n_obj]
-        self.obj['x']  = np.zeros((num_steps, self.n_obj, 3)) # snapshots of positions
-        self.obj['v']  = np.zeros((num_steps, self.n_obj, 3))
+        self.obj['x']  = np.zeros((Nsteps + 1, self.n_obj, 3)) # snapshots of positions
+        self.obj['v']  = np.zeros((Nsteps + 1, self.n_obj, 3))
 
         self.obj['x'][self.step] = self.obj['xi']
         self.obj['v'][self.step] = self.obj['vi']
 
         dt = 86400 / sample_rate # timestep [s]
 
-        for step in trange(num_steps):
+        for _ in trange(Nsteps):
             self.update(dt)
 
-        self.sim_time = np.arange(num_steps) * dt # simulation time [s] for each snapshot
+        self.sim_time = np.arange(Nsteps + 1) * dt # simulation time [s] for each snapshot
         X_com, V_com = self.COM()
 
         return {'t': self.sim_time, 'id': self.obj['id'], 'id_index': self.obj['id_index'], \
