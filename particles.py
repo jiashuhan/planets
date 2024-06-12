@@ -77,38 +77,106 @@ class Particles(object):
 
         self.n_obj += 1
 
-    # Updates position and velocity of object
-    def update(self, dt):
-        F = self.gravity() # axes: obj,coord
-        M = np.expand_dims(self.obj['M'], axis=-1)
+    def update(self, dt, method='rkdp'):
+        """
+        Update position and velocity of objects
 
-        v = self.obj['v'][self.step] + F / M * dt # axes: obj,coord
-        self.obj['v'][self.step + 1] = v
-        # orbits won't close if order swapped
-        x = self.obj['x'][self.step] + v * dt
-        self.obj['x'][self.step + 1] = x
+        Parameters
+        ----------
+        dt: float
+            Time step [s]
+        method: str
+            Integration method; default = 'rkdp' (Dormand-Prince RK5(4))
+        """
+        V_n = self.obj['v'][self.step] # current velocities; axes: obj,coord
+        X_n = self.obj['x'][self.step] # current positions; axes: obj,coord
+
+        if method == 'euler': # symplectic Euler
+            k1_v = self.acc(X_n) # force based on current state; axes: obj,coord
+            
+            V_np1 = V_n + dt * k1_v # axes: obj,coord
+            X_np1 = X_n + dt * V_np1 # use V_np1 instead of V_n (Forward Euler)
+
+        elif method == 'leapfrog': # Leapfrog method
+            V_n_half = V_n + 0.5 * dt * self.acc(X_n)
+            X_np1 = X_n + dt * V_n_half
+            V_np1 = V_n_half + 0.5 * dt * self.acc(X_np1)
+
+        elif method == 'rk4': # Runge-Kutta 4th order
+            k1_v = self.acc(X_n) # force based on current state; axes: obj,coord
+            k1_x =          V_n
+
+            k2_v = self.acc(X_n + dt * 0.5 * k1_x) # force based on half-step ahead
+            k2_x =          V_n + dt * 0.5 * k1_v
+
+            k3_v = self.acc(X_n + dt * 0.5 * k2_x)
+            k3_x =          V_n + dt * 0.5 * k2_v
+
+            k4_v = self.acc(X_n + dt * k3_x)
+            k4_x =          V_n + dt * k3_v
+
+            V_np1 = V_n + dt * (k1_v + 2 * k2_v + 2 * k3_v + k4_v) / 6
+            X_np1 = X_n + dt * (k1_x + 2 * k2_x + 2 * k3_x + k4_x) / 6
+
+        elif method == 'rkdp': # Dormand-Prince RK5(4)
+            k1_v = self.acc(X_n) # force based on current state; axes: obj,coord
+            k1_x =          V_n
+
+            k2_v = self.acc(X_n + dt * 1/5 * k1_x)
+            k2_x =          V_n + dt * 1/5 * k1_v
+
+            k3_v = self.acc(X_n + dt * (3/40 * k1_x + 9/40 * k2_x))
+            k3_x =          V_n + dt * (3/40 * k1_v + 9/40 * k2_v)
+
+            k4_v = self.acc(X_n + dt * (44/45 * k1_x - 56/15 * k2_x + 32/9 * k3_x))
+            k4_x =          V_n + dt * (44/45 * k1_v - 56/15 * k2_v + 32/9 * k3_v)
+
+            k5_v = self.acc(X_n + dt * (19372/6561 * k1_x - 25360/2187 * k2_x + 64448/6561 * k3_x - 212/729 * k4_x))
+            k5_x =          V_n + dt * (19372/6561 * k1_v - 25360/2187 * k2_v + 64448/6561 * k3_v - 212/729 * k4_v)
+
+            k6_v = self.acc(X_n + dt * (9017/3168 * k1_x - 355/33 * k2_x + 46732/5247 * k3_x + 49/176 * k4_x - 5103/18656 * k5_x))
+            k6_x =          V_n + dt * (9017/3168 * k1_v - 355/33 * k2_v + 46732/5247 * k3_v + 49/176 * k4_v - 5103/18656 * k5_v)
+
+            k7_x = V_n + dt * (35/384 * k1_v + 500/1113 * k3_v + 125/192 * k4_v - 2187/6784 * k5_v + 11/84 * k6_v)
+
+            # 5th order solution
+            X_np1 = X_n + dt * (35/384 * k1_x + 500/1113 * k3_x + 125/192 * k4_x - 2187/6784 * k5_x + 11/84 * k6_x)
+            V_np1 = V_n + dt * (35/384 * k1_v + 500/1113 * k3_v + 125/192 * k4_v - 2187/6784 * k5_v + 11/84 * k6_v)
+
+            # 4th order solution
+            X_np1_ = X_n + dt * (5719/57600 * k1_x + 7571/16695 * k3_x + 393/640 * k4_x - 92097/339200 * k5_x + 187/2100 * k6_x + 1/40 * k7_x)
+
+            self.obj['x_err'][self.step + 1] = X_np1 - X_np1_
+
+        else:
+            raise Exception("Unknown method.")
+
+        self.obj['v'][self.step + 1] = V_np1
+        self.obj['x'][self.step + 1] = X_np1
 
         self.step += 1
 
-    def gravity(self):
+    def acc(self, X):
         """
-        Computes the gravitational force on each object.
+        Computes the gravitational acceleration on each object.
+
+        Parameters
+        ----------
+        X: numpy.ndarray
+            Positions of objects; axes: obj, coord
 
         Returns
         -------
-        force: 2d array, float
-            Force acting on each object [N]; axes: obj, coord
+        acc_vec: 2d array, float
+            Acceleration of each object [m/s^2]; axes: obj, coord
         """
-        M = self.obj['M']
-        X = self.obj['x'][self.step] # current positions; axes: obj,coord
-
         dX = X[:,np.newaxis] - X # axes: obj1,obj2, coord
         r = np.sqrt(np.sum(dX**2, axis=-1)) # axes: obj1, obj2
         _ = np.finfo(float).eps # avoid div by 0; self force removed by dX
         
-        Fvec = self.G * np.sum(M[:,np.newaxis,np.newaxis] * M[:,np.newaxis] * dX / (r[...,np.newaxis]**(self.n+1) + _), axis=0) # axes: obj,coord
+        acc_vec = self.G * np.sum(self.obj['M'][:,np.newaxis,np.newaxis] * dX / (r[...,np.newaxis]**(self.n+1) + _), axis=0) # axes: obj,coord
 
-        return Fvec
+        return acc_vec
 
     # computes position and speed of the center of mass of the system for all snapshots
     def COM(self):
@@ -123,7 +191,7 @@ class Particles(object):
 
         return X_com, V_com # axes: snapshots, coord
 
-    def run(self, Nsteps, sample_rate):
+    def run(self, Nsteps, sample_rate, method='rkdp'):
         """
         Runs the simulation and updates the objects. First compute
         forces acting on all objects, then update the position and
@@ -132,9 +200,11 @@ class Particles(object):
         Parameters
         ----------
         Nsteps: int
-            Total number of steps in the simulation.
+            Total number of steps in the simulation
         sample_rate: float
-            Number of steps per day.
+            Number of steps per day
+        method: str
+            Integration method; default = 'rkdp' (Dormand-Prince RK5(4))
 
         Returns
         -------
@@ -156,11 +226,16 @@ class Particles(object):
 
         self.obj['x'][self.step] = self.obj['xi']
         self.obj['v'][self.step] = self.obj['vi']
+        if method == 'rkdp':
+            self.obj['x_err'] = np.zeros_like(self.obj['x']) # Dormand-Prince position error (5th - 4th)
 
         dt = 86400 / sample_rate # timestep [s]
 
         for _ in trange(Nsteps):
-            self.update(dt)
+            self.update(dt, method=method)
+
+        if method == 'rkdp':
+            print('Max error = %.5f m'%np.abs(self.obj['x_err']).max())
 
         self.sim_time = np.arange(Nsteps + 1) * dt # simulation time [s] for each snapshot
         X_com, V_com = self.COM()

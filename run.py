@@ -399,7 +399,7 @@ kepler_check.move(com_check.pos().x(), com_check.pos().y() + com_check.height() 
 column3_x = nobj_box.pos().x() + nobj_box.width() + column_gap
 
 table_width = window_width - w_margin - column3_x
-table_height = 200
+table_height = 175
 
 # Table of all particles created for the simulation
 table_title = QLabel(w); table_title.setText('LIST OF OBJECTS'); table_title.setFont(QFont("Arial", 13, QFont.Bold))
@@ -461,6 +461,17 @@ force_box = QLineEdit(w); force_box.setText('2')
 force_box.resize(vec_box_size * 3, vec_box_size)
 force_box.move(force_label.pos().x() + force_label.width(), force_label.pos().y() - vec_box_offset)
 
+# Integration method
+method_label = QLabel(w); method_label.setText('Method')
+method_label.move(force_label.pos().x(), force_box.pos().y() + force_box.height() + vec_box_h_gap)
+
+method_box = QComboBox(w); method_box.move(column3_x + int(method_label.width() / 2), method_label.pos().y() - vec_box_offset)
+method_box.resize(int(force_box.width() * 1.5), method_box.height())
+methods = {'Symplectic Euler': 'euler', 'Leapfrog': 'leapfrog', 'Runge-Kutta (RK4)': 'rk4', 'Dormand-Prince': 'rkdp'}
+for x in methods:
+    method_box.addItem(x)
+method_box.setCurrentText('Dormand-Prince')
+
 start_button = QPushButton('Start', w); start_button.setToolTip('Start simulation')
 start_button.resize(start_button.sizeHint())
 start_button.move(force_box.pos().x() - start_button.width(), add_button.pos().y())
@@ -470,11 +481,13 @@ def on_click_start():
         sample_rate = float(res_box.text())
         duration    = float(duration_box.text())
         force       = float(force_box.text())
+        method      = methods[method_box.currentText()]
     except ValueError: # If these not entered, set default values
         sample_rate = 1. # [1/d]
         duration    = 3652.5 # [d]
         epoch       = 2451545.0
         force       = 2.
+        method      = 'rkdp'
         print("Warning: number of steps not entered; set to default values.")
 
     Nsteps = int(sample_rate * duration)
@@ -484,7 +497,7 @@ def on_click_start():
         return 1
     
     nbody.epoch = epoch
-    results = nbody.run(Nsteps, sample_rate)
+    results = nbody.run(Nsteps, sample_rate, method=method)
     results['kepler'] = current_preset
 
     if '*Sun' in results['id']:
@@ -500,7 +513,7 @@ def on_click_start():
     animate(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
             COM=com_check.isChecked(), cm=cm, kepler=kepler_check.isChecked(), show=True)
 
-    output_name = '%s_%dsteps_%.1fd_n_%.1f'%(nbody.label, sample_rate, duration, force)
+    output_name = '%s_%dsteps_%.1fd_n_%.1f_%s'%(nbody.label, sample_rate, duration, force, method)
 
     # plot final state
     fig1, fig2 = plot(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
