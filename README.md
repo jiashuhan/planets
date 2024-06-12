@@ -18,10 +18,10 @@ python3 kepler.py simulation_output object_name central_body_name
 The final state of the simulation run is plotted and can be found in ```results/plots```. To create videos from the snapshots, run
 
 ```
-python3 visualization.py simulation_output plot_range_in_m colormap
+python3 visualization.py simulation_output plot_range_in_m colormap kepler_overlay
 ```
 
-This will generate videos of the simulation in ```results/videos``` with the specified plot range (in meters) and color map.
+This will generate videos of the simulation in ```results/videos``` with the specified plot range (in meters) and color map. If the parameter ```kepler_overlay``` is set to 1, the Keplerian orbits specified by the initial orbital elements will be plotted in dashed lines alongside the actual orbits.
 
 <img src="./results/videos/ksp.gif" width="600" height="300"/>
 

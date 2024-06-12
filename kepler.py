@@ -190,7 +190,7 @@ def result2kep(input_file, name, central_body, snapshot=-1):
     central_body: str
         Name of the central body
     snapshot: int, optional
-        Index of the snapshot used; defaut: -1 (last)
+        Index of the snapshot used; default: -1 (last)
 
     Returns
     -------
@@ -211,6 +211,63 @@ def result2kep(input_file, name, central_body, snapshot=-1):
     V_ = np.array(V) - np.array(V0)
 
     return cart2kep(*X_, *V_, m + m0)
+
+def kep2ellipse(e, a, i, Ω, ω=None, ϖ=None, points=1000):
+    """
+    Returns a parametric form of the ellipse described by
+    the orbital elements
+
+    Parameters
+    ----------
+    e: float
+        Eccentricity [rad]
+    a: float
+        Semi-major axis [m]
+    i: float
+        Inclination [deg]
+    Ω: float
+        Longitude of the ascending node [deg]
+    ω: float
+        Argument of periapsis [deg]
+    ϖ: float
+        Longitude of periapsis [deg]; used if ω is None
+    points: int
+        Number of points to sample; default = 1000
+
+    Returns
+    -------
+    X, Y, Z: numpy.ndarray
+        Elliptical coordinates [m] of the ellipse
+
+    Notes
+    -----
+    (1) The expression is derived from the general form of the ellipse: 
+        x(t) = c + cos(t) * u + sin(t) * v, where the vector c is the 
+        center of the ellipse, |u - c| is the semi-major axis, and 
+        |v - c| is the semi-minor axis.
+    (2) The focus near the periapsis is at (0, 0, 0).
+    """
+    if ω is None:
+        ω = (ϖ - Ω) / 180 * np.pi
+    else:
+        ω = ω / 180 * np.pi
+
+    i = i / 180 * np.pi
+    Ω = Ω / 180 * np.pi
+
+    t = np.linspace(0, 2 * np.pi, points)
+
+    X = a * (  (- e * np.cos(ω) + np.cos(t) * np.cos(ω) \
+                - np.sqrt(1 - e**2) * np.sin(t) * np.sin(ω)) * np.cos(Ω) \
+             - (- e * np.sin(ω) + np.cos(t) * np.sin(ω) \
+                + np.sqrt(1 - e**2) * np.sin(t) * np.cos(ω)) * np.cos(i) * np.sin(Ω))
+    Y = a * (  (- e * np.cos(ω) + np.cos(t) * np.cos(ω) \
+                - np.sqrt(1 - e**2) * np.sin(t) * np.sin(ω)) * np.sin(Ω) \
+             + (- e * np.sin(ω) + np.cos(t) * np.sin(ω) \
+                + np.sqrt(1 - e**2) * np.sin(t) * np.cos(ω)) * np.cos(i) * np.cos(Ω))
+    Z = a * (-e * np.sin(ω) + np.cos(t) * np.sin(ω) + np.sqrt(1 - e**2) * np.sin(t) * np.cos(ω)) * np.sin(i)
+
+    return X, Y, Z
 
 if __name__ == '__main__':
     import sys

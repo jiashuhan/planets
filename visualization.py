@@ -1,6 +1,7 @@
 import numpy as np, matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as p3
 import matplotlib.animation as animation
+from kepler import kep2ellipse
 
 plot_dir = './results/plots/'
 vid_dir = './results/videos/'
@@ -11,8 +12,8 @@ colormaps = {'solar':  ['yellow', 'silver', 'gold', 'deepskyblue', 'tomato', 'pe
              'default':['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9']}
 
 # Animate the orbits
-def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7,
-            wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07, show=False):
+def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', kepler=False,
+            lw=0.7, wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07, show=False):
     name     = results['id']
     pos      = results['x']
     sim_time = results['t']
@@ -43,6 +44,20 @@ def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=
             color = colormaps[cm][i]
         else:
             color = colormaps['default'][i % len(colormaps['default'])]
+
+        if kepler and COM: # plot Kepler orbit based on initial orbital parameters
+            obj = name[i]
+            if obj[0] != '*':
+                ecc, a, inc, Ω, ω, _, _ = results['kepler'][obj]
+                kepler_orbit = kep2ellipse(ecc, a, inc, Ω, ω) # origin at central body
+                # Translate orbit since origin of plot is at COM
+                kepler_orbit_x = kepler_orbit[0] - X_com[0, 0]
+                kepler_orbit_y = kepler_orbit[1] - X_com[0, 1]
+                kepler_orbit_z = kepler_orbit[2] - X_com[0, 2]
+
+                ax1.plot(kepler_orbit_x, kepler_orbit_y, kepler_orbit_z, linestyle='--', linewidth=lw/2, color=color)
+                ax2.plot(kepler_orbit_x, kepler_orbit_y, linestyle='--', linewidth=lw/2, color=color)
+                ax3.plot(kepler_orbit_y, kepler_orbit_z, linestyle='--', linewidth=lw/2, color=color)
 
         paths3d.append(ax1.plot(p[0, 0:1], p[1, 0:1], p[2, 0:1], linewidth=lw, color=color)[0])
         points3d.append(ax1.plot([], [], [], marker='.', color=color, label=name[i])[0])
@@ -126,8 +141,8 @@ def update_paths_2d(step, positions, paths2d_z, paths2d_x, points2d_z, points2d_
     return paths2d_z, paths2d_x, points2d_z, points2d_x, title
 
 # plot final state of system
-def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7,
-         wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07):
+def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', kepler=False,
+         lw=0.7, wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07):
     name     = results['id']
     pos      = results['x']
     sim_time = results['t']
@@ -158,6 +173,20 @@ def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7
             color = colormaps[cm][i]
         else:
             color = colormaps['default'][i % len(colormaps['default'])]
+
+        if kepler and COM: # plot Kepler orbit based on initial orbital parameters
+            obj = name[i]
+            if obj[0] != '*':
+                ecc, a, inc, Ω, ω, _, _ = results['kepler'][obj]
+                kepler_orbit = kep2ellipse(ecc, a, inc, Ω, ω=ω) # origin at central body
+                # Translate orbit since origin of plot is at COM
+                kepler_orbit_x = kepler_orbit[0] - X_com[0, 0]
+                kepler_orbit_y = kepler_orbit[1] - X_com[0, 1]
+                kepler_orbit_z = kepler_orbit[2] - X_com[0, 2]
+
+                ax1.plot(kepler_orbit_x, kepler_orbit_y, kepler_orbit_z, linestyle='--', linewidth=lw/2, color=color)
+                ax2.plot(kepler_orbit_x, kepler_orbit_y, linestyle='--', linewidth=lw/2, color=color)
+                ax3.plot(kepler_orbit_y, kepler_orbit_z, linestyle='--', linewidth=lw/2, color=color)
 
         ax1.plot(pos[:,i,0], pos[:,i,1], pos[:,i,2], linewidth=lw, color=color)
         ax1.plot(pos[-1,i,0], pos[-1,i,1], pos[-1,i,2], marker='.', color=color, label=name[i])
@@ -199,13 +228,13 @@ def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7
 
     return fig1, fig2
 
-def make_animation(input_path, output_dir, set_range=True, plot_range=6e12, COM=False, cm='solar', lw=0.7,
-                   wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07):
+def make_animation(input_path, output_dir, set_range=True, plot_range=6e12, COM=False, cm='solar', kepler=False,
+                   lw=0.7, wspace=0.05, tmargin=0.1, bmargin=0.07, lmargin=0.2, rmargin=0.07):
     results = np.load(input_path, allow_pickle=True).item()
     output_name = input_path.split('/')[-1][:-4]
 
-    anim3d, anim2d = animate(results, set_range=set_range, plot_range=plot_range, COM=COM, cm=cm, lw=lw,
-                     wspace=wspace, tmargin=tmargin, bmargin=bmargin, lmargin=lmargin, rmargin=rmargin, show=False)
+    anim3d, anim2d = animate(results, set_range=set_range, plot_range=plot_range, COM=COM, cm=cm, kepler=kepler, 
+                     lw=lw, wspace=wspace, tmargin=tmargin, bmargin=bmargin, lmargin=lmargin, rmargin=rmargin, show=False)
 
     Writer = animation.writers['ffmpeg']
     writer = Writer(fps=12, metadata=dict(artist='Me'), bitrate=1800)
@@ -218,6 +247,8 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         assert len(sys.argv) >= 3
 
+        # Example1: python3 visualization.py results/SolarSystem_10steps_3652.5d_n_2.0.npy 8e11 solar 1
+        # Example2: python3 visualization.py results/KSPsystem_10steps_3652.5d_n_2.0.npy 1e11 ksp 1
         input_path = sys.argv[1]
         plot_range = float(sys.argv[2])
         if len(sys.argv) >= 4:
@@ -225,4 +256,9 @@ if __name__ == '__main__':
         else:
             colormap = 'default'
 
-        make_animation(input_path, vid_dir, set_range=True, plot_range=plot_range, COM=True, cm=colormap)
+        if len(sys.argv) >= 5:
+            kepler = bool(int(sys.argv[4]))
+        else:
+            kepler = False
+
+        make_animation(input_path, vid_dir, set_range=True, plot_range=plot_range, COM=True, cm=colormap, kepler=kepler)

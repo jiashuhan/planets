@@ -386,7 +386,11 @@ range_box.move(range_check.pos().x() + range_check.width(), range_check.pos().y(
 
 # Checkbox for COM frame
 com_check = QCheckBox(w); com_check.setText('Use COM frame'); com_check.setChecked(True)
-com_check.move(range_check.pos().x(), range_check.pos().y() + range_check.height())
+com_check.move(range_check.pos().x(), range_check.pos().y() + range_check.height() - vec_box_offset)
+
+# Checkbox for Kepler orbit overlay
+kepler_check = QCheckBox(w); kepler_check.setText('Kepler orbit overlay'); kepler_check.setChecked(False)
+kepler_check.move(com_check.pos().x(), com_check.pos().y() + com_check.height() - vec_box_offset)
 
 #-----------------
 # List of objects
@@ -494,13 +498,13 @@ def on_click_start():
 
     # show preview
     animate(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
-            COM=com_check.isChecked(), cm=cm, show=True)
+            COM=com_check.isChecked(), cm=cm, kepler=kepler_check.isChecked(), show=True)
 
     output_name = '%s_%dsteps_%.1fd_n_%.1f'%(nbody.label, sample_rate, duration, force)
 
     # plot final state
     fig1, fig2 = plot(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
-                      COM=com_check.isChecked(), cm=cm)
+                      COM=com_check.isChecked(), cm=cm, kepler=kepler_check.isChecked())
     fig1.savefig(plot_dir+output_name+'_3d.pdf', bbox_inches='tight')
     fig2.savefig(plot_dir+output_name+'_2d.pdf', bbox_inches='tight')
     
