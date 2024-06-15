@@ -5,6 +5,8 @@ Simple Newtonian N-body simulation
 """
 import sys, numpy as np
 from tqdm.auto import trange
+from tqdm import tqdm
+from scipy.integrate import RK45
 
 class Particles(object):
     """
@@ -91,18 +93,24 @@ class Particles(object):
         V_n = self.obj['v'][self.step] # current velocities; axes: obj,coord
         X_n = self.obj['x'][self.step] # current positions; axes: obj,coord
 
-        if method == 'euler': # symplectic Euler
+        if method == 'euler': # symplectic Euler (1st order)
             k1_v = self.acc(X_n) # force based on current state; axes: obj,coord
             
             V_np1 = V_n + dt * k1_v # axes: obj,coord
             X_np1 = X_n + dt * V_np1 # use V_np1 instead of V_n (Forward Euler)
 
-        elif method == 'leapfrog': # Leapfrog method
+        elif method == 'verlet': # velocity Verlet (2nd order)
+            k1_v = self.acc(X_n)
+
+            X_np1 = X_n + dt * V_n + dt**2 * 0.5 * k1_v
+            V_np1 = V_n + dt * 0.5 * (k1_v + self.acc(X_np1))
+
+        elif method == 'leapfrog': # Leapfrog (2nd order)
             V_n_half = V_n + 0.5 * dt * self.acc(X_n)
             X_np1 = X_n + dt * V_n_half
             V_np1 = V_n_half + 0.5 * dt * self.acc(X_np1)
 
-        elif method == 'rk4': # Runge-Kutta 4th order
+        elif method == 'rk4': # Runge-Kutta (4th order)
             k1_v = self.acc(X_n) # force based on current state; axes: obj,coord
             k1_x =          V_n
 
@@ -118,7 +126,7 @@ class Particles(object):
             V_np1 = V_n + dt * (k1_v + 2 * k2_v + 2 * k3_v + k4_v) / 6
             X_np1 = X_n + dt * (k1_x + 2 * k2_x + 2 * k3_x + k4_x) / 6
 
-        elif method == 'rkdp': # Dormand-Prince RK5(4)
+        elif method == 'rkdp': # Dormand-Prince RK5(4) (5th/4th order embedded)
             k1_v = self.acc(X_n) # force based on current state; axes: obj,coord
             k1_x =          V_n
 
@@ -146,7 +154,14 @@ class Particles(object):
             # 4th order solution
             X_np1_ = X_n + dt * (5719/57600 * k1_x + 7571/16695 * k3_x + 393/640 * k4_x - 92097/339200 * k5_x + 187/2100 * k6_x + 1/40 * k7_x)
 
-            self.obj['x_err'][self.step + 1] = X_np1 - X_np1_
+            self.obj['x_err'][self.step + 1] = X_np1 - X_np1_ # Dormand-Prince local position error (5th - 4th)
+
+        elif method == 'adaptive_rkdp': # adaptive Dormand-Prince from scipy.integrate
+            self.integrator.step()
+            self.integrator_finished = self.integrator.status == 'finished'
+            self.t.append(self.integrator.t)
+
+            X_np1, V_np1 = self.Y_unflatten(self.integrator.y)
 
         else:
             raise Exception("Unknown method.")
@@ -191,7 +206,7 @@ class Particles(object):
 
         return X_com, V_com # axes: snapshots, coord
 
-    def run(self, Nsteps, sample_rate, method='rkdp'):
+    def run(self, duration, res, method='rkdp', max_dt=8640, avg_res_guess=500):
         """
         Runs the simulation and updates the objects. First compute
         forces acting on all objects, then update the position and
@@ -199,12 +214,19 @@ class Particles(object):
 
         Parameters
         ----------
-        Nsteps: int
-            Total number of steps in the simulation
-        sample_rate: float
-            Number of steps per day
+        duration: float
+            Duration of simulation [d]
+        res: float
+            Number of steps per day (for non-adaptive methods), or 
+            Maximum local position error [m] (for adaptive methods)
         method: str
             Integration method; default = 'rkdp' (Dormand-Prince RK5(4))
+        max_dt: float
+            Maximum step size [s] (applies to adaptive methods only); 
+            default = 8640 (1/10 of a day)
+        avg_res_guess: float
+            (Over-) estimated time resolution [1/d] (applies to adaptive 
+            methods only); default = 500
 
         Returns
         -------
@@ -213,34 +235,78 @@ class Particles(object):
 
         Notes
         -----
-        There are a total of (Nsteps + 1) snapshots, with the first 
-        one (0) being the initial state
+        (1) There are a total of (Nsteps + 1) steps/snapshots, with the first 
+            one (0) being the initial state.
+        (2) For non-adaptive methods, the steps are equally spaced in time,
+            and the step size is set by the user.
+        (3) For adaptive methods, the step size is determined by the RK45 solver,
+            with a maximum step size imposed (unlikely to have any effect for 
+            sufficiently small local position error). The total number of steps 
+            is (intentionally) over-estimated beforehand with a guess for the 
+            average time resolution (steps per day) so that there is enough 
+            space allocated to store the results.
+        (4) An average time resolution of 500 steps per day is a good guess for
+            max position error >= 0.1 mm.
         """
         self.step      = 0 # step 0 is the initial state
         self.obj['M']  = self.obj['M'][:self.n_obj]
         self.obj['id'] = self.obj['id'][:self.n_obj]
         self.obj['xi'] = self.obj['xi'][:self.n_obj]
         self.obj['vi'] = self.obj['vi'][:self.n_obj]
-        self.obj['x']  = np.zeros((Nsteps + 1, self.n_obj, 3)) # snapshots of positions
-        self.obj['v']  = np.zeros((Nsteps + 1, self.n_obj, 3))
 
-        self.obj['x'][self.step] = self.obj['xi']
-        self.obj['v'][self.step] = self.obj['vi']
-        if method == 'rkdp':
-            self.obj['x_err'] = np.zeros_like(self.obj['x']) # Dormand-Prince position error (5th - 4th)
+        if method != 'adaptive_rkdp': # non-adaptive methods
+            Nsteps = int(duration * res) # Total number of steps in the simulation
+            dt     = 86400 / res # timestep [s]
+            self.t = np.arange(Nsteps + 1) * dt # simulation time [s] for each snapshot; assuming equally spaced in time
 
-        dt = 86400 / sample_rate # timestep [s]
+            self.obj['x'] = np.zeros((Nsteps + 1, self.n_obj, 3)) # snapshots of positions
+            self.obj['v'] = np.zeros((Nsteps + 1, self.n_obj, 3))
 
-        for _ in trange(Nsteps):
-            self.update(dt, method=method)
+            self.obj['x'][self.step] = self.obj['xi'] # first snapshot is initial state
+            self.obj['v'][self.step] = self.obj['vi']
 
-        if method == 'rkdp':
-            print('Max error = %.5f m'%np.abs(self.obj['x_err']).max())
+            if method == 'rkdp':
+                self.obj['x_err'] = np.zeros_like(self.obj['x']) # Dormand-Prince local position error (5th - 4th)
 
-        self.sim_time = np.arange(Nsteps + 1) * dt # simulation time [s] for each snapshot
+            for _ in trange(Nsteps):
+                self.update(dt, method=method)
+
+            if method == 'rkdp':
+                print('Max absolute local position error = %.5f m'%np.abs(self.obj['x_err']).max())
+                print('Max relative local position error = %.5f'%np.abs(self.obj['x_err'] / (self.obj['x'] + np.finfo(float).eps)).max())
+
+        else: # adaptive methods
+            Y0   = self.Y_flatten(self.obj['xi'], self.obj['vi']) # initial state
+            xtol = res # Max local position error [m]
+            vtol = 1e-3 * xtol # Max local velocity error [m/s]
+            atol = np.zeros_like(Y0); atol[:self.n_obj*3] = xtol; atol[self.n_obj*3:] = vtol
+
+            Nsteps = int(duration * avg_res_guess) # Intentionally overestimated total number of steps
+
+            self.t = [0]
+            self.integrator_finished = False
+
+            self.obj['x'] = np.zeros((Nsteps + 1, self.n_obj, 3)) # snapshots of positions
+            self.obj['v'] = np.zeros((Nsteps + 1, self.n_obj, 3))
+
+            self.obj['x'][self.step] = self.obj['xi'] # first snapshot is initial state
+            self.obj['v'][self.step] = self.obj['vi']
+            
+            self.integrator = RK45(self.RK_derivative, 0, Y0, duration * 86400, max_step=max_dt, rtol=np.finfo(float).eps*100, atol=atol)
+
+            with tqdm(total=Nsteps) as t:
+                while not self.integrator_finished:
+                    self.update(max_dt, method=method)
+                    t.update()
+
+            # truncate arrays in case integrator finished prematurely (self.step < Nsteps)
+            self.t = np.array(self.t)[:self.step + 1]
+            self.obj['x'] = self.obj['x'][:self.step + 1]
+            self.obj['v'] = self.obj['v'][:self.step + 1]
+
         X_com, V_com = self.COM()
 
-        return {'t': self.sim_time, 'id': self.obj['id'], 'id_index': self.obj['id_index'], \
+        return {'t': self.t, 'id': self.obj['id'], 'id_index': self.obj['id_index'], \
                 'x': self.obj['x'], 'v': self.obj['v'], 'x_com': X_com, 'v_com': V_com,
                 'epoch': self.epoch, 'n': self.n}
 
@@ -263,6 +329,28 @@ class Particles(object):
         for i in range(N):
             m, x, y, z, vx, vy, vz = randomize(r0, mmax, vmax)
             self.add(m, x, y, z, vx, vy, vz, str(i))
+
+    #-----------------------------------------
+    # Methods used by adaptive Dormand-Prince
+    def Y_flatten(self, X, V):
+        Y = np.zeros(self.n_obj * 6)
+        Y[:self.n_obj*3] = X.flatten()
+        Y[self.n_obj*3:] = V.flatten()
+
+        return Y
+
+    def Y_unflatten(self, Y):
+        # Y is one-dimensional with length = N * 6 where N is the number of objects
+        X = Y[:self.n_obj*3].reshape(self.n_obj, 3)
+        V = Y[self.n_obj*3:].reshape(self.n_obj, 3)
+
+        return X, V
+
+    def RK_derivative(self, t, Y): # No explicit t dependence
+        X, V = self.Y_unflatten(Y)
+        
+        return self.Y_flatten(V, self.acc(X))
+    #-----------------------------------------
 
 def randomize(r0, mmax, vmax):
     """

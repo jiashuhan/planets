@@ -1,4 +1,4 @@
-import sys, numpy as np
+import sys, re, numpy as np
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from particles import *
@@ -429,15 +429,42 @@ divider5.move(table.pos().x(), table.pos().y() + table.height())
 sim_title = QLabel(w); sim_title.setText('SIMULATION'); sim_title.setFont(QFont("Arial", 13, QFont.Bold))
 sim_title.move(divider5.pos().x(), divider5.pos().y() + vec_box_h_gap * 2)
 
+# Integration method
+method_label = QLabel(w); method_label.setText('Method')
+method_label.move(sim_title.pos().x(), sim_title.pos().y() + sim_title.height())# + vec_box_h_gap)
+
+method_box = QComboBox(w); method_box.move(column3_x + int(method_label.width() / 2), method_label.pos().y() - vec_box_offset)
+method_box.resize(int(nobj_box.width() * 1.5), method_box.height())
+methods = {'Symplectic Euler': 'euler', 
+           'Velocity Verlet': 'verlet',
+           'Leapfrog': 'leapfrog', 
+           'Runge-Kutta (RK4)': 'rk4', 
+           'Dormand-Prince': 'rkdp',
+           'Adaptive Dormand-Prince': 'adaptive_rkdp'}
+for x in methods:
+    method_box.addItem(x)
+
+def on_activated_method_box(text):
+    if not re.search('[A|a]daptive', text) is None:
+        res_label.setText('Tolerance [m]')
+        res_box.setText('1e-4')
+    else:
+        res_label.setText('Resolution [1/d]')
+        res_box.setText('10')
+
+method_box.activated[str].connect(on_activated_method_box)
+method_box.setCurrentText('Dormand-Prince')
+
 # Entering epoch at start in Julian date; default: J2000
 epoch_label = QLabel(w); epoch_label.setText('Start epoch (JD)')
-epoch_label.move(sim_title.pos().x(), sim_title.pos().y() + sim_title.height())
+epoch_label.move(method_label.pos().x(), method_box.pos().y() + method_box.height() + vec_box_h_gap)
 
 epoch_box = QLineEdit(w); epoch_box.setText('2451545.0')
 epoch_box.resize(vec_box_size * 3, vec_box_size)
 epoch_box.move(epoch_label.pos().x() + epoch_label.width(), epoch_label.pos().y() - vec_box_offset)
 
-# Entering number of steps per day
+# For non-adaptive methods, this is the number of steps per day
+# For adaptive methods, this is the maximum local position error [m]
 res_label = QLabel(w); res_label.setText('Resolution [1/d]')
 res_label.move(epoch_label.pos().x(), epoch_box.pos().y() + epoch_box.height() + vec_box_h_gap)
 
@@ -461,43 +488,30 @@ force_box = QLineEdit(w); force_box.setText('2')
 force_box.resize(vec_box_size * 3, vec_box_size)
 force_box.move(force_label.pos().x() + force_label.width(), force_label.pos().y() - vec_box_offset)
 
-# Integration method
-method_label = QLabel(w); method_label.setText('Method')
-method_label.move(force_label.pos().x(), force_box.pos().y() + force_box.height() + vec_box_h_gap)
-
-method_box = QComboBox(w); method_box.move(column3_x + int(method_label.width() / 2), method_label.pos().y() - vec_box_offset)
-method_box.resize(int(force_box.width() * 1.5), method_box.height())
-methods = {'Symplectic Euler': 'euler', 'Leapfrog': 'leapfrog', 'Runge-Kutta (RK4)': 'rk4', 'Dormand-Prince': 'rkdp'}
-for x in methods:
-    method_box.addItem(x)
-method_box.setCurrentText('Dormand-Prince')
-
 start_button = QPushButton('Start', w); start_button.setToolTip('Start simulation')
 start_button.resize(start_button.sizeHint())
 start_button.move(force_box.pos().x() - start_button.width(), add_button.pos().y())
 def on_click_start():
     try:
-        epoch       = float(epoch_box.text())
-        sample_rate = float(res_box.text())
-        duration    = float(duration_box.text())
-        force       = float(force_box.text())
-        method      = methods[method_box.currentText()]
+        epoch    = float(epoch_box.text())
+        res      = float(res_box.text()) # Steps per day [1/d] or Max local position error [m]
+        duration = float(duration_box.text())
+        force    = float(force_box.text())
+        method   = methods[method_box.currentText()]
     except ValueError: # If these not entered, set default values
-        sample_rate = 1. # [1/d]
-        duration    = 3652.5 # [d]
-        epoch       = 2451545.0
-        force       = 2.
-        method      = 'rkdp'
+        epoch    = 2451545.0
+        res      = 1. # Steps per day [1/d]
+        duration = 3652.5 # [d]
+        force    = 2.
+        method   = 'rkdp'
         print("Warning: number of steps not entered; set to default values.")
-
-    Nsteps = int(sample_rate * duration)
 
     if nbody.n_obj == 0:
         print("Error: no objects entered.")
         return 1
     
     nbody.epoch = epoch
-    results = nbody.run(Nsteps, sample_rate, method=method)
+    results = nbody.run(duration, res, method=method, max_dt=8640, avg_res_guess=500)
     results['kepler'] = current_preset
 
     if '*Sun' in results['id']:
@@ -513,7 +527,7 @@ def on_click_start():
     animate(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
             COM=com_check.isChecked(), cm=cm, kepler=kepler_check.isChecked(), show=True)
 
-    output_name = '%s_%dsteps_%.1fd_n_%.1f_%s'%(nbody.label, sample_rate, duration, force, method)
+    output_name = '%s_res%.1e_%.1fd_n_%.1f_%s'%(nbody.label, res, duration, force, method)
 
     # plot final state
     fig1, fig2 = plot(results, set_range=range_check.isChecked(), plot_range=float(range_box.text()), 
@@ -552,7 +566,7 @@ def on_click_reset():
     vmax_box.setText('1e3')
     mmax_box.setText('1e27')
     epoch_box.setText('2451545.0')
-    res_box.setText('10')
+    on_activated_method_box(method_box.currentText())
     duration_box.setText('3652.5')
     force_box.setText('2')
     table.setColumnCount(0)
