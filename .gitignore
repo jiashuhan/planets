@@ -1,0 +1,12 @@
+.DS_Store
+.vscode/
+.ipynb_checkpoints/
+__pycache__/
+*.grow
+*.err
+*.S2
+*.snp
+*.log
+*.png
+*.jpg
+*.mp4
