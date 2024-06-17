@@ -11,7 +11,7 @@ def preset_list(path):
 def load_preset(file):
     f = open(file, 'r')
     i = 0
-    preset = {}
+    preset = {'parent': {}, 'params': {}}
 
     for line in f:
         if line[0] != '#':
@@ -23,7 +23,11 @@ def load_preset(file):
                 use_L = bool(int(line))
             else:
                 new_line = np.array(line.split(","))
-                params = new_line[1:].astype(float)
+                name = new_line[0].strip()
+
+                preset['parent'][name] = new_line[1].strip()
+
+                params = new_line[2:].astype(float)
                 if a_in_AU:
                     params[1] *= AU
                 if use_wb:
@@ -31,7 +35,7 @@ def load_preset(file):
                 if use_L:
                     params[5] = (params[5] - params[4] - params[3] + 360) % 360 # M = L - ω - Ω
 
-                preset[new_line[0]] = params
+                preset['params'][name] = params
 
             i += 1
 
@@ -46,7 +50,7 @@ def load_test_cases(file):
         if line[0] != '#':
             new_line = np.array(line.split(","))
             params = new_line[1:].astype(float)
-            test_cases[new_line[0]] = params
+            test_cases[new_line[0].strip()] = params
 
     f.close()
     return test_cases

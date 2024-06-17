@@ -1,0 +1,14 @@
+# Keplerian orbital elements and masses of objects for the Galilean moons (https://web.archive.org/web/20131103134221/http://ssd.jpl.nasa.gov/?sat_elem)
+# Epoch = 2450464.50 (1997-Jan.-16.00)
+# Semi-major axis in [AU], otherwise in [m]
+0
+# Use longitude of periapsis (ϖ), otherwise use argument of periapsis (ω)
+0
+# Use mean longitude (L), otherwise use mean anomaly (M)
+0
+# Name     Parent    e       a            i      Ω        ϖ/ω      L/M      Mass [kg]
+*Jupiter,  N/A,      0.,     0.,          0.,      0.,      0.,    0.,    1.8982e27
+Io,        *Jupiter, 0.0041, 421800000.,  0.036,  43.977,  84.129, 342.021, 8.931938e22
+Europa,    *Jupiter, 0.0094, 671100000.,  0.466, 219.106,  88.970, 171.016, 4.79984e22
+Ganymede,  *Jupiter, 0.0013, 1070400000., 0.177,  63.552, 192.417, 317.540, 1.4819e23
+Callisto,  *Jupiter, 0.0074, 1882700000., 0.192, 298.848,  52.643, 181.408, 1.075938e23

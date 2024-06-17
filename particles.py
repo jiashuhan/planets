@@ -33,8 +33,10 @@ class Particles(object):
         self.n_obj = 0
         self.step  = 0
         self.obj   = {'M':  np.zeros(N),               # masses
+                      'kepler': {},                    # orbital parameters of secondary objects
                       'id': np.zeros(N, dtype='<U21'), # identifiers
-                      'id_index':  {},                 # id to index
+                      'id_index': {},                  # id to index
+                      'parent': {},                    # identifiers of parent objects
                       'xi': np.zeros((N, 3)),          # initial positions [m]; axes: obj, coord
                       'vi': np.zeros((N, 3))           # initial velocities [m/s]; axes: obj, coord
                       }
@@ -42,7 +44,7 @@ class Particles(object):
         self.epoch = 0
 
     # add additional object
-    def add(self, mass, x, y, z, vx, vy, vz, nm):
+    def add(self, mass, x, y, z, vx, vy, vz, nm, parent):
         """
         Parameters
         ----------
@@ -56,8 +58,11 @@ class Particles(object):
             initial rest frame of the central body.
         nm: str
             Identifier of object
+        parent: str
+            Identifier of parent object
         """
         self.obj['id_index'][nm] = self.n_obj
+        self.obj['parent'][nm] = parent
 
         if self.n_obj >= self.N: # more objects than number of slots
             self.obj['M']  = np.append(self.obj['M'], mass)
@@ -307,8 +312,9 @@ class Particles(object):
         X_com, V_com = self.COM()
 
         return {'t': self.t, 'id': self.obj['id'], 'id_index': self.obj['id_index'], \
-                'x': self.obj['x'], 'v': self.obj['v'], 'x_com': X_com, 'v_com': V_com,
-                'epoch': self.epoch, 'n': self.n}
+                'parent': self.obj['parent'], 'x': self.obj['x'], 'v': self.obj['v'], \
+                'M': self.obj['M'], 'x_com': X_com, 'v_com': V_com, 'epoch': self.epoch, \
+                'n': self.n, 'kepler': self.obj['kepler']}
 
     def gen_random(self, N, r0, mmax, vmax):
         """
@@ -325,10 +331,20 @@ class Particles(object):
             Maximum mass [kg] of the objects.
         vmax: float
             Maximum speed [m/s] in each direction.
+
+        Returns
+        -------
+        names: list
+            Names of random objects
         """
+        names = []
         for i in range(N):
             m, x, y, z, vx, vy, vz = randomize(r0, mmax, vmax)
-            self.add(m, x, y, z, vx, vy, vz, str(i))
+            name = str(i)
+            self.add(m, x, y, z, vx, vy, vz, name, 'N/A')
+            names.append(name)
+
+        return names
 
     #-----------------------------------------
     # Methods used by adaptive Dormand-Prince

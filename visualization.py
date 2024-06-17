@@ -47,8 +47,10 @@ def animate(results, set_range=True, plot_range=6e12, COM=False, cm='solar', kep
 
         if kepler and COM: # plot Kepler orbit based on initial orbital parameters
             obj = name[i]
-            if obj[0] != '*':
-                ecc, a, inc, Ω, ω, _, _ = results['kepler'][obj]
+            parent = results['parent'][obj]
+
+            if parent != 'N/A' and results['parent'][parent] == 'N/A': # only plot Kepler orbits of primary planets
+                ecc, a, inc, Ω, ω, _ = results['kepler'][obj]
                 kepler_orbit = kep2ellipse(ecc, a, inc, Ω, ω) # origin at central body
                 # Translate orbit since origin of plot is at COM
                 kepler_orbit_x = kepler_orbit[0] - X_com[0, 0]
@@ -176,8 +178,10 @@ def plot(results, set_range=True, plot_range=6e12, COM=False, cm='solar', kepler
 
         if kepler and COM: # plot Kepler orbit based on initial orbital parameters
             obj = name[i]
-            if obj[0] != '*':
-                ecc, a, inc, Ω, ω, _, _ = results['kepler'][obj]
+            parent = results['parent'][obj]
+
+            if parent != 'N/A' and results['parent'][parent] == 'N/A': # only plot Kepler orbits of primary planets
+                ecc, a, inc, Ω, ω, _ = results['kepler'][obj]
                 kepler_orbit = kep2ellipse(ecc, a, inc, Ω, ω=ω) # origin at central body
                 # Translate orbit since origin of plot is at COM
                 kepler_orbit_x = kepler_orbit[0] - X_com[0, 0]

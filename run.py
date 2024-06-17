@@ -48,8 +48,15 @@ mass_box = QLineEdit(w); mass_box.setText('1e23')
 mass_box.resize(vec_box_size * 3 + vec_box_w_gap * 2, vec_box_size)
 mass_box.move(mass_label.pos().x() + mass_label.width(), mass_label.pos().y() - vec_box_offset)
 
+parent_label = QLabel(w); parent_label.setText('Parent body') # Parent body of the object; 'N/A' for central body
+parent_label.move(mass_label.pos().x(), mass_box.pos().y() + mass_box.height() + vec_box_h_gap)
+
+parent_box = QComboBox(w); parent_box.move(parent_label.pos().x() + parent_label.width(), parent_label.pos().y() - vec_box_offset)
+parent_box.resize(parent_box.sizeHint())
+parent_box.addItem('N/A')
+
 divider1 = QLabel(w); divider1.setText('----------------------------------')
-divider1.move(mass_label.pos().x(), mass_box.pos().y() + mass_box.height())
+divider1.move(parent_label.pos().x(), parent_box.pos().y() + parent_box.height())
 
 # Orbital elements
 
@@ -95,15 +102,8 @@ ma_box = QLineEdit(w); ma_box.setText('174')
 ma_box.resize(vec_box_size * 3 + vec_box_w_gap * 2, vec_box_size)
 ma_box.move(ma_label.pos().x() + ma_label.width(), ma_label.pos().y() - vec_box_offset)
 
-larger_mass_label = QLabel(w); larger_mass_label.setText('Larger mass [kg]') # mass of the central body
-larger_mass_label.move(ma_label.pos().x(), ma_box.pos().y() + ma_box.height() + vec_box_h_gap)
-
-larger_mass_box = QLineEdit(w); larger_mass_box.setText('1.9884e30')
-larger_mass_box.resize(vec_box_size * 3 + vec_box_w_gap * 2, vec_box_size)
-larger_mass_box.move(larger_mass_label.pos().x() + larger_mass_label.width(), larger_mass_label.pos().y() - vec_box_offset)
-
 divider2 = QLabel(w); divider2.setText('----------------------------------')
-divider2.move(larger_mass_label.pos().x(), larger_mass_box.pos().y() + larger_mass_box.height())
+divider2.move(ma_label.pos().x(), ma_box.pos().y() + ma_box.height())
 
 r_vec_label = QLabel(w); r_vec_label.setText('Position [m]')
 r_vec_label.move(divider2.pos().x(), divider2.pos().y() + vec_box_h_gap * 2)
@@ -148,17 +148,22 @@ def on_click_convert():
         AP  = float(ap_box.text())
         MA  = float(ma_box.text())
         ms  = float(mass_box.text())
-        ml  = float(larger_mass_box.text())
+        
+        parent = parent_box.currentText()
+        parent_index = nbody.obj['id_index'][parent]
+        ml = nbody.obj['M'][parent_index]
+        parent_X = nbody.obj['xi'][parent_index]
+        parent_V = nbody.obj['vi'][parent_index]
         
         X, V = kep2cart(e, a, i, LAN, ms + ml, ω=AP, M=MA)
-        r_vec_x_box.setText(str(X[0]))
-        r_vec_y_box.setText(str(X[1]))
-        r_vec_z_box.setText(str(X[2]))
-        v_vec_x_box.setText(str(V[0]))
-        v_vec_y_box.setText(str(V[1]))
-        v_vec_z_box.setText(str(V[2]))
+        r_vec_x_box.setText(str(X[0] + parent_X[0]))
+        r_vec_y_box.setText(str(X[1] + parent_X[1]))
+        r_vec_z_box.setText(str(X[2] + parent_X[2]))
+        v_vec_x_box.setText(str(V[0] + parent_V[0]))
+        v_vec_y_box.setText(str(V[1] + parent_V[1]))
+        v_vec_z_box.setText(str(V[2] + parent_V[2]))
 
-        return 0
+        return e, a, i, LAN, AP, MA
 
     except ValueError:
         print("Error: invalid parameters.")
@@ -174,6 +179,11 @@ def on_click_add():
     try:
         name = str(name_box.text())
         mass = float(mass_box.text())
+        parent = parent_box.currentText()
+
+        if parent != 'N/A': # store orbital parameters for secondary objects
+            nbody.obj['kepler'][name] = on_click_convert()
+
         x  = float(r_vec_x_box.text())
         y  = float(r_vec_y_box.text())
         z  = float(r_vec_z_box.text())
@@ -185,8 +195,9 @@ def on_click_add():
         print("Error: invalid parameters.")
         return 1
 
-    nbody.add(mass, x, y, z, vx, vy, vz, name)
-    update_table(nbody.obj) # Updates table
+    nbody.add(mass, x, y, z, vx, vy, vz, name, parent)
+    parent_box.addItem(name)
+    update_table(nbody.n_obj, nbody.obj) # Updates table
 
     return 0
 
@@ -211,7 +222,7 @@ def on_activated_presets_box1a(text):
     presets_box1b.clear()
     global current_preset
     current_preset = load_preset(preset_path + str(text) + '.txt')
-    for x in current_preset.keys():
+    for x in current_preset['params'].keys():
         presets_box1b.addItem(x)
 
 presets_box1a.activated[str].connect(on_activated_presets_box1a)
@@ -219,44 +230,51 @@ presets_box1a.activated[str].connect(on_activated_presets_box1a)
 # Drop-down list for selecting individual objects
 presets_box1b = QComboBox(w); presets_box1b.move(presets_box1a.pos().x(), presets_box1a.pos().y() + presets_box1a.height())
 current_preset = load_preset(preset_path + presets[0] + '.txt') # Default preset
-for x in current_preset.keys():
+for x in current_preset['params'].keys():
     presets_box1b.addItem(x)
 
 def on_activated_presets_box1b(text):
     text_str = str(text)
-    if text_str[0] == '*': # '*' indicates central body of system
+    parent = current_preset['parent'][text_str]
+
+    if parent == 'N/A': # or text_str[0] == '*'; indicates central body of system
         x = y = z = vx = vy = vz = 0
-        m = current_preset[text_str][6]
+        m = current_preset['params'][text_str][6]
         ecc_box.setText('N/A')
         a_box.setText('N/A')
         inc_box.setText('N/A')
         lan_box.setText('N/A')
         ap_box.setText('N/A')
         ma_box.setText('N/A')
-        larger_mass_box.setText('N/A')
+
+        r_vec_x_box.setText(str(x))
+        r_vec_y_box.setText(str(y))
+        r_vec_z_box.setText(str(z))
+        v_vec_x_box.setText(str(vx))
+        v_vec_y_box.setText(str(vy))
+        v_vec_z_box.setText(str(vz))
+
     else:
-        e, a, i, Om, w, M, m = current_preset[text_str]
-        m0 = current_preset[list(current_preset.keys())[0]][6]
+        e, a, i, Om, w, M, m = current_preset['params'][text_str]
         ecc_box.setText(str(e))
         a_box.setText(str(a))
         inc_box.setText(str(i))
         lan_box.setText(str(Om))
         ap_box.setText(str(w))
         ma_box.setText(str(M))
-        larger_mass_box.setText(str(m0))
-        (x, y, z), (vx, vy, vz) = kep2cart(e, a, i, Om, m + m0, ω=w, M=M)
+
+        # check if preset parent body is already added
+        if not parent in nbody.obj['id']:
+            print("WARNING: Parent body not added.")
 
     name_box.setText(text)
     mass_box.setText(str(m))
-
-    r_vec_x_box.setText(str(x))
-    r_vec_y_box.setText(str(y))
-    r_vec_z_box.setText(str(z))
-    v_vec_x_box.setText(str(vx))
-    v_vec_y_box.setText(str(vy))
-    v_vec_z_box.setText(str(vz))
+    parent_box.setCurrentText(parent)
 
 presets_box1b.activated[str].connect(on_activated_presets_box1b)
+
+presets_box1a.setCurrentText('Solar System') # Default preset is the solar system
+on_activated_presets_box1a('Solar System')
 
 # Drop-down list for selecting random or test particles
 presets_box2 = QComboBox(w); presets_box2.move(presets_box1b.pos().x(), presets_box1b.pos().y() + presets_box1b.height())
@@ -276,6 +294,7 @@ def on_activated_presets_box2(text):
     
     name_box.setText(name)
     mass_box.setText(str(m))
+    parent_box.setCurrentText('N/A')
 
     ecc_box.setText('N/A')
     a_box.setText('N/A')
@@ -283,7 +302,6 @@ def on_activated_presets_box2(text):
     lan_box.setText('N/A')
     ap_box.setText('N/A')
     ma_box.setText('N/A')
-    larger_mass_box.setText('N/A')
 
     r_vec_x_box.setText(str(x))
     r_vec_y_box.setText(str(y))
@@ -299,9 +317,12 @@ quick_add_button.resize(quick_add_button.sizeHint())
 quick_add_button.move(presets_box2.pos().x(), presets_box2.pos().y() + presets_box2.height())
 
 def on_click_quick_add():
-    nbody.reset(N=len(current_preset))
-    nbody.label = presets_box1a.currentText().replace(' ', '')
-    for x in current_preset.keys():
+    has_central = not re.search("N/A", "".join(current_preset['parent'].values())) is None
+    if has_central: # only reset objects if current preset contains a central body
+        nbody.reset(N=len(current_preset['params']))
+        nbody.label = presets_box1a.currentText().replace(' ', '')
+
+    for x in current_preset['parent'].keys():
         on_activated_presets_box1b(x)
         on_click_add()
 
@@ -361,8 +382,11 @@ def on_click_add_random():
         mmax = 1e27
         print("Warning: initial parameters not entered; set to default values.")
 
-    nbody.gen_random(N, r0, mmax, vmax)
-    update_table(nbody.obj)
+    names = nbody.gen_random(N, r0, mmax, vmax)
+    update_table(nbody.n_obj, nbody.obj)
+    
+    for x in names: # Allow random objects to be parent bodies
+        parent_box.addItem(x)
 
 add_random_button.clicked.connect(on_click_add_random)
 
@@ -409,15 +433,21 @@ table = QTableWidget(w)
 table.resize(table_width, table_height)
 table.move(table_title.pos().x(), table_title.pos().y() + table_title.height() - vec_box_offset)
 
-def update_table(objects): # update table after adding object
-    num_items = objects['xi'].shape[0]
-    table.setColumnCount(1)
+def update_table(num_items, objects): # update table after adding object
+    table.setColumnCount(2)
     table.setRowCount(num_items)
+    table.setHorizontalHeaderItem(0, QTableWidgetItem('Object'))
+    table.setHorizontalHeaderItem(1, QTableWidgetItem('Parent'))
+    
     count = 0
     for i in range(num_items):
-        Name = objects['id'][i]
+        Name   = objects['id'][i]
+        Parent = objects['parent'][Name]
         table.setItem(count, 0, QTableWidgetItem(Name))
+        table.setItem(count, 1, QTableWidgetItem(Parent))
         count += 1
+
+    table.resizeColumnsToContents()
 
 divider5 = QLabel(w); divider5.setText('-----------------------------')
 divider5.move(table.pos().x(), table.pos().y() + table.height())
@@ -512,7 +542,6 @@ def on_click_start():
     
     nbody.epoch = epoch
     results = nbody.run(duration, res, method=method, max_dt=8640, avg_res_guess=500)
-    results['kepler'] = current_preset
 
     if '*Sun' in results['id']:
         cm = 'solar'
@@ -548,13 +577,14 @@ def on_click_reset():
     nbody.reset()
     name_box.setText('Particle 1')
     mass_box.setText('1e23')
+    parent_box.clear()
+    parent_box.addItem('N/A')
     ecc_box.setText('0.2')
     a_box.setText('1e10')
     inc_box.setText('10')
     lan_box.setText('48')
     ap_box.setText('29')
     ma_box.setText('174')
-    larger_mass_box.setText('1.9884e30')
     r_vec_x_box.setText('-1e10')
     r_vec_y_box.setText('-1e9')
     r_vec_z_box.setText('1e9')

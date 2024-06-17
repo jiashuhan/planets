@@ -1,0 +1,18 @@
+# Keplerian orbital elements and masses of moons in the KSP system
+# Epoch = 0.0s UT
+# Semi-major axis in [AU], otherwise in [m]
+0
+# Use longitude of periapsis (ϖ), otherwise use argument of periapsis (ω)
+0
+# Use mean longitude (L), otherwise use mean anomaly (M)
+0
+# Name    Parent    e       a            i       Ω     ϖ/ω   L/M       Mass [kg]
+Gilly,    Eve,      0.55,    31500000.,  12.,    80.,  10.,   51.566,  1.2420363e17
+Mun,      Kerbin,   0.,      12000000.,   0.,     0.,   0.,   97.403,  9.7599066e20
+Minmus,   Kerbin,   0.,      47000000.,   6.,    78.,  38.,   51.566,  2.6457580e19
+Ike,      Duna,     0.03,     3200000.,   0.2,    0.,   0.,   97.403,  2.7821615e20
+Laythe,   Jool,     0.,      27184000.,   0.,     0.,   0.,  179.909,  2.9397311e22
+Vall,     Jool,     0.,      43152000.,   0.,     0.,   0.,   51.566,  3.1087655e21
+Tylo,     Jool,     0.,      68500000.,   0.025,  0.,   0.,  179.909,  4.2332127e22
+Bop,      Jool,     0.235,  128500000.,  15.,    10.,  25.,   51.566,  3.7261090e19
+Pol,      Jool,     0.171,  179890000.,   4.25,   2.,  15.,   51.566,  1.0813507e19
